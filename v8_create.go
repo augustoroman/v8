@@ -1,0 +1,158 @@
+package v8
+
+import (
+	"fmt"
+	"path"
+	"reflect"
+	"runtime"
+	"sort"
+	"unicode"
+	"unsafe"
+)
+
+// #include <stdlib.h>
+// #include <string.h>
+// #include "v8_c_bridge.h"
+// #cgo CXXFLAGS: -I${SRCDIR} -I${SRCDIR}/include -std=c++11
+// #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libbase -lv8_snapshot -lv8_libsampler -lv8_libplatform -ldl -pthread
+import "C"
+
+var float64Type = reflect.TypeOf(float64(0))
+var callbackType = reflect.TypeOf(Callback(nil))
+var stringType = reflect.TypeOf(string(""))
+var valuePtrType = reflect.TypeOf((*Value)(nil))
+
+// Create maps Go values into JavaScript values in the Context.  Create can
+// automatically map the following types of values:
+//   * bool
+//   * all integers and floats are mapped to JS numbers (float64)
+//   * strings
+//   * maps (keys must be strings)
+//   * structs
+//   * slices
+//   * pointers to any of the above
+//   * v8.Callback (automatically bind'd)
+//   * *v8.Value (returned as-is)
+//
+// Any nil pointers are converted to undefined in JS.
+//
+// Values for elements in maps, structs, and slices may be any of the above
+// types.
+func (ctx *Context) Create(val interface{}) (*Value, error) {
+	return ctx.create(reflect.ValueOf(val))
+}
+
+func (ctx *Context) createVal(v C.ImmediateValue) *Value {
+	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v))
+}
+
+func (ctx *Context) create(val reflect.Value) (*Value, error) {
+	if val.IsValid() && val.Type() == valuePtrType {
+		return val.Interface().(*Value), nil
+	}
+
+	switch val.Kind() {
+	case reflect.Invalid:
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}), nil
+	case reflect.Bool:
+		bval := C.int(0)
+		if val.Bool() {
+			bval = 1
+		}
+		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, BoolVal: bval}), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		num := C.double(val.Convert(float64Type).Float())
+		return ctx.createVal(C.ImmediateValue{Type: C.tNUMBER, Num: num}), nil
+	case reflect.String:
+		str := C.String{ptr: C.CString(val.String()), len: C.int(len(val.String()))}
+		defer C.free(unsafe.Pointer(str.ptr))
+		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Str: str}), nil
+	case reflect.UnsafePointer, reflect.Uintptr:
+		return nil, fmt.Errorf("Uintptr not supported: %#v", val.Interface())
+	case reflect.Complex64, reflect.Complex128:
+		return nil, fmt.Errorf("Complex not supported: %#v", val.Interface())
+	case reflect.Chan:
+		return nil, fmt.Errorf("Chan not supported: %#v", val.Interface())
+	case reflect.Func:
+		if val.Type().ConvertibleTo(callbackType) {
+			name := path.Base(runtime.FuncForPC(val.Pointer()).Name())
+			return ctx.Bind(name, val.Convert(callbackType).Interface().(Callback)), nil
+		}
+		return nil, fmt.Errorf("Func not supported: %#v", val.Interface())
+	case reflect.Interface, reflect.Ptr:
+		return ctx.create(val.Elem())
+	case reflect.Map:
+		if val.Type().Key() != stringType {
+			return nil, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
+		}
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
+		keys := val.MapKeys()
+		sort.Sort(stringKeys(keys))
+		for _, key := range keys {
+			v, err := ctx.create(val.MapIndex(key))
+			if err != nil {
+				return nil, fmt.Errorf("map key %q: %v", key.String(), err)
+			}
+			if err := ob.Set(key.String(), v); err != nil {
+				return nil, err
+			}
+		}
+		return ob, nil
+	case reflect.Struct:
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
+		t := val.Type()
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if !unicode.IsUpper(rune(f.Name[0])) {
+				continue // skip unexported values
+			}
+			v, err := ctx.create(val.Field(i))
+			if err != nil {
+				return nil, fmt.Errorf("field %q: %v", f.Name, err)
+			}
+			if err := ob.Set(f.Name, v); err != nil {
+				return nil, err
+			}
+		}
+		// Also export any methods of the struct that match the callback type.
+		for i := 0; i < t.NumMethod(); i++ {
+			name := t.Method(i).Name
+			if !unicode.IsUpper(rune(name[0])) {
+				continue // skip unexported values
+			}
+
+			m := val.Method(i)
+			if m.Type().ConvertibleTo(callbackType) {
+				v, err := ctx.create(m)
+				if err != nil {
+					return nil, fmt.Errorf("method %q: %v", name, err)
+				}
+				if err := ob.Set(name, v); err != nil {
+					return nil, err
+				}
+			}
+		}
+		return ob, nil
+	case reflect.Array, reflect.Slice:
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())})
+		for i := 0; i < val.Len(); i++ {
+			v, err := ctx.create(val.Index(i))
+			if err != nil {
+				return nil, fmt.Errorf("index %d: %v", i, err)
+			}
+			if err := ob.SetIndex(i, v); err != nil {
+				return nil, err
+			}
+		}
+		return ob, nil
+	}
+	panic("Unknown kind!")
+}
+
+type stringKeys []reflect.Value
+
+func (s stringKeys) Len() int           { return len(s) }
+func (s stringKeys) Swap(a, b int)      { s[a], s[b] = s[b], s[a] }
+func (s stringKeys) Less(a, b int) bool { return s[a].String() < s[b].String() }
