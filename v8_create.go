@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
+	"strings"
 	"unicode"
 	"unsafe"
 )
@@ -38,12 +39,39 @@ var valuePtrType = reflect.TypeOf((*Value)(nil))
 //
 // Values for elements in maps, structs, and slices may be any of the above
 // types.
+//
+// When structs are being converted, any fields with json struct tags will
+// respect the json naming entry.  For example:
+//     var x = struct {
+//        Ignored     string `json:"-"`
+//        Renamed     string `json:"foo"`
+//        DefaultName string `json:",omitempty"`
+//        Bar         string
+//     }{"a", "b", "c", "d"}
+// will be converted as:
+//    {
+//        foo: "a",
+//        DefaultName: "b",
+//        Bar: "c",
+//    }
+// Also, embedded structs (or pointers-to-structs) will get inlined.
 func (ctx *Context) Create(val interface{}) (*Value, error) {
 	return ctx.create(reflect.ValueOf(val))
 }
 
 func (ctx *Context) createVal(v C.ImmediateValue) *Value {
 	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v))
+}
+
+func getJsName(fieldName, jsonTag string) string {
+	jsonName := strings.TrimSpace(strings.Split(jsonTag, ",")[0])
+	if jsonName == "-" {
+		return "" // skip this field
+	}
+	if jsonName == "" {
+		return fieldName // use the default name
+	}
+	return jsonName // explict name specified
 }
 
 func (ctx *Context) create(val reflect.Value) (*Value, error) {
@@ -102,39 +130,7 @@ func (ctx *Context) create(val reflect.Value) (*Value, error) {
 		return ob, nil
 	case reflect.Struct:
 		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
-		t := val.Type()
-		for i := 0; i < t.NumField(); i++ {
-			f := t.Field(i)
-			if !unicode.IsUpper(rune(f.Name[0])) {
-				continue // skip unexported values
-			}
-			v, err := ctx.create(val.Field(i))
-			if err != nil {
-				return nil, fmt.Errorf("field %q: %v", f.Name, err)
-			}
-			if err := ob.Set(f.Name, v); err != nil {
-				return nil, err
-			}
-		}
-		// Also export any methods of the struct that match the callback type.
-		for i := 0; i < t.NumMethod(); i++ {
-			name := t.Method(i).Name
-			if !unicode.IsUpper(rune(name[0])) {
-				continue // skip unexported values
-			}
-
-			m := val.Method(i)
-			if m.Type().ConvertibleTo(callbackType) {
-				v, err := ctx.create(m)
-				if err != nil {
-					return nil, fmt.Errorf("method %q: %v", name, err)
-				}
-				if err := ob.Set(name, v); err != nil {
-					return nil, err
-				}
-			}
-		}
-		return ob, nil
+		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())})
 		for i := 0; i < val.Len(); i++ {
@@ -149,6 +145,66 @@ func (ctx *Context) create(val reflect.Value) (*Value, error) {
 		return ob, nil
 	}
 	panic("Unknown kind!")
+}
+
+func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
+	t := val.Type()
+
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		name := getJsName(f.Name, f.Tag.Get("json"))
+		if name == "" {
+			continue // skip field with tag `json:"-"`
+		}
+
+		// Inline embedded fields.
+		if f.Anonymous {
+			sub := val.Field(i)
+			for sub.Kind() == reflect.Ptr && !sub.IsNil() {
+				sub = sub.Elem()
+			}
+
+			if sub.Kind() == reflect.Struct {
+				err := ctx.writeStructFields(ob, sub)
+				if err != nil {
+					return fmt.Errorf("Writing embedded field %q: %v", f.Name, err)
+				}
+				continue
+			}
+		}
+
+		if !unicode.IsUpper(rune(f.Name[0])) {
+			continue // skip unexported fields
+		}
+
+		v, err := ctx.create(val.Field(i))
+		if err != nil {
+			return fmt.Errorf("field %q: %v", f.Name, err)
+		}
+		if err := ob.Set(name, v); err != nil {
+			return err
+		}
+	}
+
+	// Also export any methods of the struct that match the callback type.
+	for i := 0; i < t.NumMethod(); i++ {
+		name := t.Method(i).Name
+		if !unicode.IsUpper(rune(name[0])) {
+			continue // skip unexported values
+		}
+
+		m := val.Method(i)
+		if m.Type().ConvertibleTo(callbackType) {
+			v, err := ctx.create(m)
+			if err != nil {
+				return fmt.Errorf("method %q: %v", name, err)
+			}
+			if err := ob.Set(name, v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 type stringKeys []reflect.Value

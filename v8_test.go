@@ -657,6 +657,38 @@ func TestCreateComplex(t *testing.T) {
 	}
 }
 
+func TestCreateJsonTags(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	type A struct {
+		Embedded    string `json:"embedded"`
+		AlsoIngored string `json:"-"`
+	}
+	type Nil struct{ Missing string }
+	type B struct {
+		*A
+		*Nil
+		Ignored     string `json:"-"`
+		Renamed     string `json:"foo"`
+		DefaultName string `json:",omitempty"`
+		Bar         string
+	}
+
+	var x = B{&A{"a", "x"}, nil, "y", "b", "c", "d"}
+	val, err := ctx.Create(x)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const expected = `{"embedded":"a","foo":"b","DefaultName":"c","Bar":"d"}`
+	if data, err := json.Marshal(val); err != nil {
+		t.Fatal(err)
+	} else if string(data) != expected {
+		t.Errorf("Incorrect object:\nExp: %s\nGot: %s", expected, data)
+	}
+}
+
 func TestParseJson(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
