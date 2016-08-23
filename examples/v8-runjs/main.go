@@ -19,21 +19,13 @@ import (
 	"os"
 
 	"github.com/augustoroman/v8"
+	"github.com/augustoroman/v8/v8console"
 )
-
-var console Console
 
 func main() {
 	flag.Parse()
 	ctx := v8.NewIsolate().NewContext()
-	consoleOb, err := ctx.Create(map[string]interface{}{
-		"log":   console.Info,
-		"info":  console.Info,
-		"warn":  console.Warn,
-		"error": console.Error,
-	})
-	failOnError(err)
-	failOnError(ctx.Global().Set("console", consoleOb))
+	v8console.Config{"", os.Stdout, os.Stderr, true}.Inject(ctx)
 
 	for _, filename := range flag.Args() {
 		data, err := ioutil.ReadFile(filename)
@@ -45,7 +37,6 @@ func main() {
 
 func failOnError(err error) {
 	if err != nil {
-		console.writeLog(os.Stderr, RED, err)
-		os.Exit(1)
+		panic(err)
 	}
 }
