@@ -9,7 +9,17 @@ if [[ "$1" == "-h" || -z "$1" ]]; then
   exit 0
 fi
 
-V8=${1%/}
+PKG_DIR=`dirname $0`
+V8_DIR=${1%/}
+cd ${PKG_DIR}
+
+# Make sure that the specified include dir exists.  This could happen if you
+# specify a relative directory that isn't right after cd'ing to PKG_DIR.
+if [[ ! -d ${V8_DIR}/include ]]; then
+    echo "ERROR: ${V8_DIR}/include does not exist." >&2
+    exit 1
+fi
+
 set -x +e
-ln -s ${V8}/out/x64.release libv8
-ln -s ${V8}/include include
+ln -s ${V8_DIR}/out/x64.release libv8
+ln -s ${V8_DIR}/include include
