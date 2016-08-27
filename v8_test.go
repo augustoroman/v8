@@ -312,12 +312,12 @@ func TestBind(t *testing.T) {
 
 	var expectedLoc Loc
 
-	getLastCb := func(from Loc, args ...*Value) (*Value, error) {
-		if from != expectedLoc {
-			t.Errorf("Wrong source location: %#v", from)
+	getLastCb := func(in CallbackArgs) (*Value, error) {
+		if in.Caller != expectedLoc {
+			t.Errorf("Wrong source location: %#v", in.Caller)
 		}
-		t.Logf("Args: %s", args)
-		return args[len(args)-1], nil
+		t.Logf("Args: %s", in.Args)
+		return in.Args[len(in.Args)-1], nil
 	}
 
 	getLast := ctx.Bind("foo", getLastCb)
@@ -351,7 +351,7 @@ func TestBindReturnsError(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
-	fails := ctx.Bind("fails", func(from Loc, args ...*Value) (*Value, error) {
+	fails := ctx.Bind("fails", func(CallbackArgs) (*Value, error) {
 		return nil, errors.New("borked")
 	})
 	res, err := fails.Call(nil)
@@ -366,7 +366,7 @@ func TestBindPanics(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
-	panic := ctx.Bind("panic", func(Loc, ...*Value) (*Value, error) { panic("aaaah!!") })
+	panic := ctx.Bind("panic", func(CallbackArgs) (*Value, error) { panic("aaaah!!") })
 	ctx.Global().Set("panic", panic)
 	res, err := ctx.Eval(`panic();`, "esplode.js")
 	if err == nil {
@@ -380,7 +380,7 @@ func TestBindName(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
-	xyz := ctx.Bind("xyz", func(from Loc, args ...*Value) (*Value, error) { return nil, nil })
+	xyz := ctx.Bind("xyz", func(CallbackArgs) (*Value, error) { return nil, nil })
 	if str := xyz.String(); str != "function xyz() { [native code] }" {
 		t.Errorf("Wrong function signature: %q", str)
 	}
@@ -390,7 +390,7 @@ func TestBindNilReturn(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
-	xyz := ctx.Bind("xyz", func(from Loc, args ...*Value) (*Value, error) { return nil, nil })
+	xyz := ctx.Bind("xyz", func(CallbackArgs) (*Value, error) { return nil, nil })
 	res, err := xyz.Call(nil)
 	if err != nil {
 		t.Error(err)
@@ -405,7 +405,7 @@ func TestTerminate(t *testing.T) {
 	ctx := NewIsolate().NewContext()
 
 	waitUntilRunning := make(chan bool)
-	notify := ctx.Bind("notify", func(Loc, ...*Value) (*Value, error) {
+	notify := ctx.Bind("notify", func(CallbackArgs) (*Value, error) {
 		waitUntilRunning <- true
 		return nil, nil
 	})
@@ -568,12 +568,13 @@ func TestCreateSimple(t *testing.T) {
 	iso := NewIsolate()
 	ctx := iso.NewContext()
 
-	callback := func(Loc, ...*Value) (*Value, error) { return nil, nil }
+	callback := func(CallbackArgs) (*Value, error) { return nil, nil }
 
 	var testcases = []struct {
 		val interface{}
 		str string
 	}{
+		{nil, "undefined"},
 		{3, "3"},
 		{3.7, "3.7"},
 		{true, "true"},
@@ -603,7 +604,7 @@ func TestCreateComplex(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
-	fn := func(Loc, ...*Value) (*Value, error) { return ctx.Create("abc") }
+	fn := func(CallbackArgs) (*Value, error) { return ctx.Create("abc") }
 	type Struct struct {
 		Val    string
 		secret bool
@@ -729,5 +730,34 @@ func TestJsonMarshal(t *testing.T) {
 	const expected = `{"blah":3,"muck":true,"label":"lala"}`
 	if string(data) != expected {
 		t.Errorf("Expected: %q\nGot     : %q", expected, string(data))
+	}
+}
+
+func TestCallbackProvideCorrectContext(t *testing.T) {
+	t.Parallel()
+
+	// greet is a generate callback handler that is not associated with a
+	// particular context -- it uses the provided context to create a value
+	// to return, even when used from different isolates.
+	greet := func(in CallbackArgs) (*Value, error) {
+		return in.Context.Create("Hello " + in.Arg(0).String())
+	}
+
+	ctx1, ctx2 := NewIsolate().NewContext(), NewIsolate().NewContext()
+	ctx1.Global().Set("greet", ctx1.Bind("greet", greet))
+	ctx2.Global().Set("greet", ctx2.Bind("greet", greet))
+
+	alice, err1 := ctx1.Eval("greet('Alice')", "ctx1.js")
+	if err1 != nil {
+		t.Errorf("Context 1 failed: %v", err1)
+	} else if str := alice.String(); str != "Hello Alice" {
+		t.Errorf("Bad result: %q", str)
+	}
+
+	bob, err2 := ctx2.Eval("greet('Bob')", "ctx2.js")
+	if err2 != nil {
+		t.Errorf("Context 2 failed: %v", err2)
+	} else if str := bob.String(); str != "Hello Bob" {
+		t.Errorf("Bad result: %q", str)
 	}
 }

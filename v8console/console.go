@@ -106,21 +106,21 @@ func (c Config) toInterfaceWithLoc(caller v8.Loc, args []*v8.Value) []interface{
 
 // Info is the v8 callback function that is registered for the console.log and
 // console.info functions.
-func (c Config) Info(caller v8.Loc, args ...*v8.Value) (*v8.Value, error) {
-	c.writeLog(c.Stdout, kNO_COLOR, c.toInterface(args)...)
+func (c Config) Info(in v8.CallbackArgs) (*v8.Value, error) {
+	c.writeLog(c.Stdout, kNO_COLOR, c.toInterface(in.Args)...)
 	return nil, nil
 }
 
 // Warn is the v8 callback function that is registered for the console.warn
 // functions.
-func (c Config) Warn(caller v8.Loc, args ...*v8.Value) (*v8.Value, error) {
-	c.writeLog(c.Stderr, kYELLOW, c.toInterfaceWithLoc(caller, args)...)
+func (c Config) Warn(in v8.CallbackArgs) (*v8.Value, error) {
+	c.writeLog(c.Stderr, kYELLOW, c.toInterfaceWithLoc(in.Caller, in.Args)...)
 	return nil, nil
 }
 
 // Error is the v8 callback function that is registered for the console.error
 // functions.
-func (c Config) Error(caller v8.Loc, args ...*v8.Value) (*v8.Value, error) {
-	c.writeLog(c.Stderr, kRED, c.toInterfaceWithLoc(caller, args)...)
+func (c Config) Error(in v8.CallbackArgs) (*v8.Value, error) {
+	c.writeLog(c.Stderr, kRED, c.toInterfaceWithLoc(in.Caller, in.Args)...)
 	return nil, nil
 }

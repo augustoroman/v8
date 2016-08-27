@@ -26,13 +26,31 @@ import (
 )
 
 // Callback is the signature for callback functions that are registered with a
-// V8 context via Bind(). The first argument is the script location that is
-// javascript is calling from. The remaining arguments and return values are
-// Value objects that represent handles to data within the V8 context.  If the
-// function is called directly from Go (e.g. via Call()), then "from" will be
-// empty. Never return a Value from a different V8 isolate. Never panic in
-// callback handlers.
-type Callback func(from Loc, args ...*Value) (*Value, error)
+// V8 context via Bind(). Never return a Value from a different V8 isolate. A
+// return value of nil will return "undefined" to javascript. Returning an
+// error will throw an exception. Panics are caught and returned as errors to
+// avoid disrupting the cgo stack.
+type Callback func(CallbackArgs) (*Value, error)
+
+// CallbackArgs provide the context for handling a javascript callback into go.
+// Caller is the script location that javascript is calling from. If the
+// function is called directly from Go (e.g. via Call()), then "Caller" will be
+// empty. Args are the arguments provided by the JS code.  Context is the V8
+// context that initiated the call.
+type CallbackArgs struct {
+	Caller  Loc
+	Args    []*Value
+	Context *Context
+}
+
+// Arg returns the specified argument or "undefined" if it doesn't exist.
+func (c *CallbackArgs) Arg(n int) *Value {
+	if n < len(c.Args) && n >= 0 {
+		return c.Args[n]
+	}
+	undef, _ := c.Context.Create(nil)
+	return undef
+}
 
 // Loc defines a script location.
 type Loc struct {
@@ -409,7 +427,7 @@ func go_callback_handler(
 		}
 	}()
 
-	res, err := info.Callback(caller_loc, args...)
+	res, err := info.Callback(CallbackArgs{caller_loc, args, ctx})
 
 	if err != nil {
 		errmsg := err.Error()

@@ -2,6 +2,7 @@ package v8_test
 
 import (
 	"fmt"
+
 	"github.com/augustoroman/v8"
 )
 
@@ -21,8 +22,8 @@ func Example() {
 	fmt.Println("add(3,4) =", res.String())      // I hope it's 7.
 
 	// You can also bind Go functions to javascript:
-	my_count_function := func(caller v8.Loc, args ...*v8.Value) (*v8.Value, error) {
-		return ctx.Create(len(args)) // ctx.Create is great for mapping Go -> JS.
+	my_count_function := func(in v8.CallbackArgs) (*v8.Value, error) {
+		return in.Context.Create(len(in.Args)) // ctx.Create is great for mapping Go -> JS.
 	}
 	cnt := ctx.Bind("count", my_count_function)
 	ctx.Global().Set("count_args", cnt)
@@ -54,7 +55,9 @@ func ExampleContext_Create() {
 	ctx := v8.NewIsolate().NewContext()
 
 	type Info struct{ Name, Email string }
-	fn := func(v8.Loc, ...*v8.Value) (*v8.Value, error) { return ctx.Create("yay!") }
+	fn := func(in v8.CallbackArgs) (*v8.Value, error) {
+		return in.Context.Create("yay!")
+	}
 	var v8val *v8.Value = ctx.Bind("yay_func", fn)
 
 	val, err := ctx.Create(map[string]interface{}{

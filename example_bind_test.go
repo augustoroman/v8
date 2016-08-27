@@ -8,9 +8,9 @@ type Console struct {
 	Info Callback // Both exported variables and exported methods work!
 }
 
-func (c Console) Log(l Loc, args ...*Value) (*Value, error) {
-	fmt.Printf("%s:%d>", l.Filename, l.Line)
-	for _, arg := range args {
+func (c Console) Log(in CallbackArgs) (*Value, error) {
+	fmt.Printf("%s:%d>", in.Caller.Filename, in.Caller.Line)
+	for _, arg := range in.Args {
 		fmt.Print(" ", arg)
 	}
 	fmt.Print("\n")
