@@ -29,17 +29,17 @@ want to place the static v8 library into `$GO_V8/libv8/`.  (For example,
 
 Build:
 
-    make x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"`
+    make x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
 
 If build system produces a thin archive, you want to make it into a fat one:
 
-    for lib in `find out/x64.release/obj.target/tools/gyp/ -name '*.a'`;
+    for lib in `find out/x64.release/obj.target/src/ -name '*.a'`;
       do ar -t $lib | xargs ar rvs $lib.new && mv -v $lib.new $lib;
-    done`
+    done
 
 Symlink the libraries and include directory to the Go package dir:
 
-    ln -s `pwd`/out/x64.release ${GO_V8}/libv8
+    ln -s `pwd`/out/x64.release/obj.target/src ${GO_V8}/libv8
     ln -s `pwd`/include ${GO_V8}/include
 
 

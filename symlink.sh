@@ -15,11 +15,24 @@ cd ${PKG_DIR}
 
 # Make sure that the specified include dir exists.  This could happen if you
 # specify a relative directory that isn't right after cd'ing to PKG_DIR.
-if [[ ! -d ${V8_DIR}/include ]]; then
+if [[ ! -d "${V8_DIR}/include" ]]; then
     echo "ERROR: ${V8_DIR}/include does not exist." >&2
     exit 1
 fi
 
+if [[ "$(go env GOOS)" -eq "linux" ]]; then
+    V8_LIBS="out/x64.release/obj.target/src"
+elif [[ "$(go env GOOS)" -eq "darwin" ]]; then
+    V8_LIBS="out/x64.release"
+else
+    V8_LIBS="out/x64.release" # take a guess
+fi
+
+if [[ ! -d "${V8_DIR}/${V8_LIBS}" ]]; then
+    echo "ERROR: ${V8_DIR}/${V8_LIBS} directory does not exist." >&2
+    exit 1
+fi
+
 set -x +e
-ln -s ${V8_DIR}/out/x64.release libv8
+ln -s ${V8_DIR}/${V8_LIBS} libv8
 ln -s ${V8_DIR}/include include
