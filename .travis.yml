@@ -1,7 +1,7 @@
 language: go
 go:
   - tip
-install: make ci
+install: ./install_v8_linux.sh
 notifications:
   email:
     on_failure: change
