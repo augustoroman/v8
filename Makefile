@@ -12,4 +12,5 @@ ci:
 	cd ../..
 	./symlink.sh chromium/v8
 	go install .
+	echo 'Yay!'
 
