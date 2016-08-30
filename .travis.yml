@@ -1,0 +1,7 @@
+language: go
+go:
+  - tip
+install: make ci
+notifications:
+  email:
+    on_failure: change
