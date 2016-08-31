@@ -6,7 +6,7 @@
 // V8 provides two main concepts for managing javascript state: Isolates and
 // Contexts.  An isolate represents a single-threaded javascript engine that
 // can manage one or more contexts.  A context is a sandboxed javascript
-// execution enviroment.
+// execution environment.
 //
 // Thus, if you have one isolate, you could safely execute independent code in
 // many different contexts created in that isolate.  The code in the various

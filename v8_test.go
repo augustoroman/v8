@@ -300,7 +300,7 @@ func TestCallFunctionFailsOnNonFunction(t *testing.T) {
 	ob, _ := ctx.Eval(`({x:3})`, "")
 	res, err := ob.Call(nil)
 	if err == nil {
-		t.Fatal("Expected err, but got %v", res)
+		t.Fatalf("Expected err, but got %v", res)
 	} else if err.Error() != "Not a function" {
 		t.Errorf("Wrong error message: %q", err)
 	}
@@ -648,7 +648,7 @@ func TestCreateComplex(t *testing.T) {
 	if res, err := ctx.Eval(`mega[1].secret`, "test.js"); err != nil {
 		t.Fatal(err)
 	} else if str := res.String(); str != "undefined" {
-		t.Errorf("Expected undefined trying to access non-existant field 'secret', but got %q", str)
+		t.Errorf("Expected undefined trying to access non-existent field 'secret', but got %q", str)
 	}
 
 	if res, err := ctx.Eval(`mega[2].Sub.Val`, "test.js"); err != nil {

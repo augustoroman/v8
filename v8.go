@@ -106,7 +106,7 @@ func RestoreSnapshotFromExport(data []byte) *Snapshot {
 }
 
 // CreateSnapshot creates a new Snapshot after running the supplied JS code.
-// Beacuse Snapshots cannot have refences to external code (no Go callbacks),
+// Because Snapshots cannot have refences to external code (no Go callbacks),
 // all of the initialization code must be pure JS and supplied at once as the
 // arg to this function.
 func CreateSnapshot(js string) *Snapshot {
