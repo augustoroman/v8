@@ -1,3 +1,9 @@
+# The default build environment is Ubuntu 12.04 (very old!) which doesn't
+# support c++11, which we need for our bindings.  Instead, use the newer trusty
+# (14.04) distribution.
+sudo: required
+dist: trusty
+
 language: go
 go:
   - tip
