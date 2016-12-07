@@ -761,3 +761,19 @@ func TestCallbackProvideCorrectContext(t *testing.T) {
 		t.Errorf("Bad result: %q", str)
 	}
 }
+
+func TestCircularReferenceJsonMarshalling(t *testing.T) {
+	t.Parallel()
+
+	ctx := NewIsolate().NewContext()
+	circ, err := ctx.Eval("var test = {}; test.blah = test", "circular.js")
+	if err != nil {
+		t.Fatalf("Failed to create object with circular ref: %v", err)
+	}
+	data, err := circ.MarshalJSON()
+	if err == nil {
+		t.Fatalf("Expected error marshalling circular ref, but got: `%s`", data)
+	} else if !strings.Contains(err.Error(), "circular") {
+		t.Errorf("Expected a circular reference error, but got: %v", err)
+	}
+}
