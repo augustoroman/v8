@@ -17,7 +17,7 @@ fetch v8
 cd v8
 git checkout ${V8_VERSION}
 gclient sync
-make x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
+make -j 4 x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
 popd
 ./symlink.sh ${CHROMIUM_DIR}/v8
 go install .
