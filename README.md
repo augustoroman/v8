@@ -2,17 +2,15 @@
 
 The v8 bindings allow a user to execute javascript from within a go executable.
 
-The bindings are tested to work with v8 build 5.6.326.18 (latest Chrome dev at
-the time of writing).  Note that v8 releases match the Chrome release timeline:
+The bindings are tested to work with several recent v8 builds matching the
+Chrome builds 53 - 57 (see the .travis.yml file for specific versions).  For
+example, Chrome 56 (dev branch) uses v8 5.6.326.18 when this was written.
+
+Note that v8 releases match the Chrome release timeline:
 Chrome 48 corresponds to v8 4.8.\*, Chrome 49 matches v8 4.9.\*.  You can see
 the table of current chrome and the associated v8 releases at:
 
   http://omahaproxy.appspot.com/
-
-These bindings have been tested with at least the following versions of v8:
-
-  * 5.4.500.6
-  * 5.4.374.0
 
 # Compiling
 

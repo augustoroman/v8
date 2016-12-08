@@ -4,23 +4,22 @@
 sudo: required
 dist: trusty
 
+language: go
+go:
+  - master
+
+# Indicate which versions of v8 to run the test suite against.
 env:
-  - V8_VERSION=5.7.140.0
+  - V8_VERSION=5.7.140
   - V8_VERSION=5.6.326.18
   - V8_VERSION=5.5.372.29
   - V8_VERSION=5.4.524
   - V8_VERSION=5.4.500.6
   - V8_VERSION=5.3.351
-  - V8_VERSION=5.2.371
-  - V8_VERSION=5.1.300
-  - V8_VERSION=5.0.105
-  - V8_VERSION=4.9.391
-  - V8_VERSION=4.8.271.17
 
-language: go
-go:
-  - tip
+# Need to download & compile v8 libraries before running the tests.
 install: ./travis-install-linux.sh
+
 notifications:
   email:
     on_failure: change
