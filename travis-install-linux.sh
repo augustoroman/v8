@@ -4,6 +4,8 @@
 # travis-ci.
 #
 
+: "${V8_VERSION:?V8_VERSION must be set}"
+
 CHROMIUM_DIR=${HOME}/chromium
 
 mkdir -p ${CHROMIUM_DIR}
@@ -13,7 +15,7 @@ export PATH="$(pwd)/depot_tools:$PATH"
 gclient
 fetch v8
 cd v8
-git checkout 5.6.326.18
+git checkout ${V8_VERSION}
 gclient sync
 make x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
 popd
