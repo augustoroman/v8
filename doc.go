@@ -1,7 +1,7 @@
 // Package v8 provides a Go API for the the V8 javascript engine.
 //
 // This allows running javascript within a go executable.  The bindings
-// have been tested with v8 builds between 5.1.281.16 and 5.4.374.0.
+// have been tested with v8 builds between 5.1.281.16 through 5.8.244.
 //
 // V8 provides two main concepts for managing javascript state: Isolates and
 // Contexts.  An isolate represents a single-threaded javascript engine that

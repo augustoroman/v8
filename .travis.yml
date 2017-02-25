@@ -10,12 +10,15 @@ go:
 
 # Indicate which versions of v8 to run the test suite against.
 env:
-  - V8_VERSION=5.7.140
-  - V8_VERSION=5.6.326.18
+  - V8_VERSION=5.8.244
+  - V8_VERSION=5.7.492.55
+  - V8_VERSION=5.6.326.50
   - V8_VERSION=5.5.372.29
-  - V8_VERSION=5.4.524
-  - V8_VERSION=5.4.500.6
-  - V8_VERSION=5.3.351
+# These all previously worked, but travis times out if we run too many:
+#  - V8_VERSION=5.7.140
+#  - V8_VERSION=5.4.524
+#  - V8_VERSION=5.4.500.6
+#  - V8_VERSION=5.3.351
 
 # Need to download & compile v8 libraries before running the tests.
 install: ./travis-install-linux.sh

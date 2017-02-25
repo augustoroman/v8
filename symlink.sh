@@ -21,11 +21,11 @@ if [[ ! -d "${V8_DIR}/include" ]]; then
 fi
 
 if [[ "$(go env GOOS)" -eq "linux" ]]; then
-    V8_LIBS="out/x64.release/obj.target/src"
+    V8_LIBS="out/native/obj.target/src"
 elif [[ "$(go env GOOS)" -eq "darwin" ]]; then
-    V8_LIBS="out/x64.release"
+    V8_LIBS="out/native"
 else
-    V8_LIBS="out/x64.release" # take a guess
+    V8_LIBS="out/native" # take a guess
 fi
 
 if [[ ! -d "${V8_DIR}/${V8_LIBS}" ]]; then

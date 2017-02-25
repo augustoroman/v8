@@ -3,8 +3,8 @@
 The v8 bindings allow a user to execute javascript from within a go executable.
 
 The bindings are tested to work with several recent v8 builds matching the
-Chrome builds 53 - 57 (see the .travis.yml file for specific versions).  For
-example, Chrome 56 (dev branch) uses v8 5.6.326.18 when this was written.
+Chrome builds 54 - 58 (see the .travis.yml file for specific versions).  For
+example, Chrome 58 (dev branch) uses v8 5.8.244 when this was written.
 
 Note that v8 releases match the Chrome release timeline:
 Chrome 48 corresponds to v8 4.8.\*, Chrome 49 matches v8 4.9.\*.  You can see
@@ -32,17 +32,17 @@ want to place the static v8 library into `$GO_V8/libv8/`.  (For example,
 
 Build:
 
-    make x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
+    make native GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
 
 If build system produces a thin archive, you want to make it into a fat one:
 
-    for lib in `find out/x64.release/obj.target/src/ -name '*.a'`;
+    for lib in `find out/native/obj.target/src/ -name '*.a'`;
       do ar -t $lib | xargs ar rvs $lib.new && mv -v $lib.new $lib;
     done
 
 Symlink the libraries and include directory to the Go package dir:
 
-    ln -s `pwd`/out/x64.release/obj.target/src ${GO_V8}/libv8
+    ln -s `pwd`/out/native/obj.target/src ${GO_V8}/libv8
     ln -s `pwd`/include ${GO_V8}/include
 
 
@@ -51,18 +51,18 @@ Symlink the libraries and include directory to the Go package dir:
 To build: (substitute in your OS X version: `sw_vers -productVersion`)
 
     GYP_DEFINES="mac_deployment_target=10.11" \
-    make -j5 x64.release GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
+    make -j5 native GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
 
 On MacOS, the resulting libraries contain debugging information by default (even
 though we've built the release version). As a result, the binaries are 30x
 larger, then they should be. Strip that to reduce the size of the archives (and
 build times!) very significantly:
 
-    strip -S out/x64.release/libv8_*.a
+    strip -S out/native/libv8_*.a
 
 Symlink the libraries and include directory to the Go package dir:
 
-    ln -s `pwd`/out/x64.release ${GO_V8}/libv8
+    ln -s `pwd`/out/native ${GO_V8}/libv8
     ln -s `pwd`/include ${GO_V8}/include
 
 ## Reference
