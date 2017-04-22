@@ -335,6 +335,18 @@ func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
 	return v.ctx.split(result)
 }
 
+// New creates a new instance of an object using this value as its constructor.
+// If this value is not a function, this will fail.
+func (v *Value) New(args ...*Value) (*Value, error) {
+	// always allocate at least one so &argPtrs[0] works.
+	argPtrs := make([]C.PersistentValuePtr, len(args)+1)
+	for i := range args {
+		argPtrs[i] = args[i].ptr
+	}
+	result := C.v8_Value_New(v.ctx.ptr, v.ptr, C.int(len(args)), &argPtrs[0])
+	return v.ctx.split(result)
+}
+
 func (v *Value) release() {
 	if v.ctx != nil {
 		delete(v.ctx.values, v)
