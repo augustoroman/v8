@@ -306,6 +306,64 @@ func TestCallFunctionFailsOnNonFunction(t *testing.T) {
 	}
 }
 
+func TestNewFunction(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	cons, _ := ctx.Eval(`(function(){ this.x = 1; })`, "")
+	obj, err := cons.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := obj.Get("x")
+	if err != nil {
+		t.Fatal(err)
+	} else if str := res.String(); str != "1" {
+		t.Errorf("Expected 1, got %q", str)
+	}
+}
+
+func TestNewFunctionThrows(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	cons, _ := ctx.Eval(`(function(){ throw "oops"; })`, "")
+	obj, err := cons.New()
+	if err == nil {
+		t.Fatalf("Expected err, but got %v", obj)
+	} else if !strings.HasPrefix(err.Error(), "Uncaught exception: oops") {
+		t.Errorf("Wrong error message: %q", err)
+	}
+}
+
+func TestNewFunctionWithArgs(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	cons, _ := ctx.Eval(`(function(x, y){ this.x = x + y; })`, "")
+	one, _ := ctx.Eval(`1`, "")
+	two, _ := ctx.Eval(`2`, "")
+	obj, err := cons.New(one, two)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := obj.Get("x")
+	if err != nil {
+		t.Fatal(err)
+	} else if str := res.String(); str != "3" {
+		t.Errorf("Expected 3, got %q", str)
+	}
+}
+
+func TestNewFunctionFailsOnNonFunction(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	ob, _ := ctx.Eval(`({x:3})`, "")
+	res, err := ob.New()
+	if err == nil {
+		t.Fatalf("Expected err, but got %v", res)
+	} else if err.Error() != "Not a function" {
+		t.Errorf("Wrong error message: %q", err)
+	}
+}
+
 func TestBind(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()

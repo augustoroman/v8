@@ -421,6 +421,39 @@ ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
   };
 }
 
+ValueErrorPair v8_Value_New(ContextPtr ctxptr,
+                            PersistentValuePtr funcptr,
+                            int argc, PersistentValuePtr* argvptr) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::TryCatch try_catch;
+  try_catch.SetVerbose(false);
+
+  v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
+  if (!func_val->IsFunction()) {
+    return (ValueErrorPair){nullptr, DupString("Not a function")};
+  }
+  v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_val);
+
+  v8::Local<v8::Value>* argv = new v8::Local<v8::Value>[argc];
+  for (int i = 0; i < argc; i++) {
+    argv[i] = static_cast<Value*>(argvptr[i])->Get(isolate);
+  }
+
+  v8::MaybeLocal<v8::Object> result = func->NewInstance(ctx, argc, argv);
+
+  delete[] argv;
+
+  if (result.IsEmpty()) {
+    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, try_catch))};
+  }
+
+  return (ValueErrorPair){
+    static_cast<PersistentValuePtr>(new Value(isolate, result.ToLocalChecked())),
+    nullptr
+  };
+}
+
 void v8_Value_Release(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   if (valueptr == nullptr || ctxptr == nullptr)  {
     return;

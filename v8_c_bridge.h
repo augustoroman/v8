@@ -71,6 +71,9 @@ extern ValueErrorPair  v8_Value_Call(ContextPtr ctx,
                                      PersistentValuePtr func,
                                      PersistentValuePtr self,
                                      int argc, PersistentValuePtr* argv);
+extern ValueErrorPair  v8_Value_New(ContextPtr ctx,
+                                    PersistentValuePtr func,
+                                    int argc, PersistentValuePtr* argv);
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
 extern String v8_Value_String(ContextPtr ctx, PersistentValuePtr value);
 
