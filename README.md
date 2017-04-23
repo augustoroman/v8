@@ -3,8 +3,8 @@
 The v8 bindings allow a user to execute javascript from within a go executable.
 
 The bindings are tested to work with several recent v8 builds matching the
-Chrome builds 54 - 58 (see the .travis.yml file for specific versions).  For
-example, Chrome 58 (dev branch) uses v8 5.8.244 when this was written.
+Chrome builds 54 - 60 (see the .travis.yml file for specific versions).  For
+example, Chrome 59 (dev branch) uses v8 5.9.211.4 when this was written.
 
 Note that v8 releases match the Chrome release timeline:
 Chrome 48 corresponds to v8 4.8.\*, Chrome 49 matches v8 4.9.\*.  You can see
