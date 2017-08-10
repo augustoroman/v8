@@ -25,21 +25,22 @@
 extern "C" ValueErrorPair go_callback_handler(
     String id, CallerInfo info, int argc, PersistentValuePtr* argv);
 
-class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
- public:
-  virtual void* Allocate(size_t length);
-  virtual void* AllocateUninitialized(size_t length);
-  virtual void Free(void* data, size_t);
-};
-void* ArrayBufferAllocator::Allocate(size_t length) {
-  void* data = AllocateUninitialized(length);
-  return data == nullptr ? data : memset(data, 0, length);
-}
-void* ArrayBufferAllocator::AllocateUninitialized(size_t length) { return malloc(length); }
-void ArrayBufferAllocator::Free(void* data, size_t) { free(data); }
-
-// We only need one, it's stateless.
-ArrayBufferAllocator allocator;
+// TODO: Figure out why this is causing a linker error.
+//class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
+// public:
+//  virtual void* Allocate(size_t length);
+//  virtual void* AllocateUninitialized(size_t length);
+//  virtual void Free(void* data, size_t);
+//};
+//void* ArrayBufferAllocator::Allocate(size_t length) {
+//  void* data = AllocateUninitialized(length);
+//  return data == nullptr ? data : memset(data, 0, length);
+//}
+//void* ArrayBufferAllocator::AllocateUninitialized(size_t length) { return malloc(length); }
+//void ArrayBufferAllocator::Free(void* data, size_t) { free(data); }
+//
+//// We only need one, it's stateless.
+//ArrayBufferAllocator allocator;
 
 typedef struct {
   v8::Persistent<v8::Context> ptr;
@@ -126,7 +127,7 @@ StartupData v8_CreateSnapshotDataBlob(const char* js) {
 
 IsolatePtr v8_Isolate_New(StartupData startup_data) {
   v8::Isolate::CreateParams create_params;
-  create_params.array_buffer_allocator = &allocator;
+  create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
   if (startup_data.len > 0 && startup_data.ptr != nullptr) {
     v8::StartupData* data = new v8::StartupData;
     data->data = startup_data.ptr;

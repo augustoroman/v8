@@ -716,6 +716,64 @@ func TestCreateComplex(t *testing.T) {
 	}
 }
 
+func TestIsolateFinalizer(t *testing.T) {
+	t.Parallel()
+	iso := NewIsolate()
+
+	fin := make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(iso, nil)
+	runtime.SetFinalizer(iso, func(iso *Isolate) {
+		fin <- true
+	})
+	iso = nil
+
+	runtime.GC()
+	select {
+	case <-fin:
+	case <-time.After(4 * time.Second):
+		t.Errorf("finalizer of iso didn't run, no context is associated with the iso.")
+	}
+
+	iso = NewIsolate()
+	iso.NewContext()
+
+	fin = make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(iso, nil)
+	runtime.SetFinalizer(iso, func(iso *Isolate) {
+		fin <- true
+	})
+	iso = nil
+
+	runtime.GC()
+	select {
+	case <-fin:
+	case <-time.After(4 * time.Second):
+		t.Errorf("finalizer of iso didn't run, iso created one context.")
+	}
+}
+
+func TestContextFinalizer(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	fin := make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(ctx, nil)
+	runtime.SetFinalizer(ctx, func(ctx *Context) {
+		fin <- true
+	})
+	ctx = nil
+
+	runtime.GC()
+	select {
+	case <-fin:
+	case <-time.After(4 * time.Second):
+		t.Errorf("finalizer of ctx didn't run.")
+	}
+}
+
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()

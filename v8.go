@@ -12,7 +12,7 @@ package v8
 // #include <string.h>
 // #include "v8_c_bridge.h"
 // #cgo CXXFLAGS: -I${SRCDIR} -I${SRCDIR}/include -std=c++11
-// #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libbase -lv8_snapshot -lv8_libsampler -lv8_libplatform -ldl -pthread
+// #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libplatform -lv8_libbase -lv8_libsampler -lv8_snapshot -ldl -pthread
 import "C"
 
 import (
@@ -77,6 +77,7 @@ type Snapshot struct{ data C.StartupData }
 
 func newSnapshot(data C.StartupData) *Snapshot {
 	s := &Snapshot{data}
+	// TODO: Fix memory leaks, pretty sure none of these are getting called.
 	runtime.SetFinalizer(s, (*Snapshot).release)
 	return s
 }
@@ -85,6 +86,9 @@ func (s *Snapshot) release() {
 	if s.data.ptr != nil {
 		C.free(unsafe.Pointer(s.data.ptr))
 	}
+
+	// reset finalizer
+	runtime.SetFinalizer(s, nil)
 	s.data.ptr = nil
 	s.data.len = 0
 }
@@ -149,9 +153,8 @@ func (i *Isolate) NewContext() *Context {
 
 	contextsMutex.Lock()
 	nextContextId++
-	id := nextContextId
-	ctx.id = id
-	contexts[id] = ctx
+	ctx.id = nextContextId
+	contexts[nextContextId] = ctx
 	contextsMutex.Unlock()
 
 	runtime.SetFinalizer(ctx, (*Context).release)
@@ -163,7 +166,13 @@ func (i *Isolate) NewContext() *Context {
 // Contexts that are executing.  This may be called from any goroutine at any
 // time.
 func (i *Isolate) Terminate() { C.v8_Isolate_Terminate(i.ptr) }
-func (i *Isolate) release()   { C.v8_Isolate_Release(i.ptr); i.ptr = nil }
+func (i *Isolate) release() {
+	C.v8_Isolate_Release(i.ptr)
+
+	// Reset finalizer
+	runtime.SetFinalizer(i, nil)
+	i.ptr = nil
+}
 
 func (i *Isolate) convertErrorMsg(error_msg C.Error) error {
 	if error_msg.ptr == nil {
@@ -231,9 +240,13 @@ func (ctx *Context) release() {
 	for val := range ctx.values {
 		val.release()
 	}
+
 	if ctx.ptr != nil {
 		C.v8_Context_Release(ctx.ptr)
 	}
+
+	// Reset finalizer
+	runtime.SetFinalizer(ctx, nil)
 	ctx.ptr = nil
 	contextsMutex.Lock()
 	delete(contexts, ctx.id)
@@ -251,6 +264,7 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
 	val := &Value{ctx, ptr}
 	// Track allocated Persistent values so we can clean up.
 	ctx.values[val] = true
+
 	runtime.SetFinalizer(val, (*Value).release)
 	return val
 }
@@ -354,6 +368,9 @@ func (v *Value) release() {
 	if v.ptr != nil {
 		C.v8_Value_Release(v.ctx.ptr, v.ptr)
 	}
+
+	// Reset finalizer
+	runtime.SetFinalizer(v, nil)
 	v.ctx = nil
 	v.ptr = nil
 }
