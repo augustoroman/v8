@@ -77,9 +77,8 @@ type Snapshot struct{ data C.StartupData }
 
 func newSnapshot(data C.StartupData) *Snapshot {
 	s := &Snapshot{data}
-	runtime.SetFinalizer(s, func(s *Snapshot) {
-		s.release()
-	})
+	// TODO: Fix memory leaks, pretty sure none of these are getting called.
+	runtime.SetFinalizer(s, (*Snapshot).release)
 	return s
 }
 
@@ -130,9 +129,7 @@ type Isolate struct{ ptr C.IsolatePtr }
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
 	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
-	runtime.SetFinalizer(iso, func(iso *Isolate) {
-		iso.release()
-	})
+	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
 
@@ -141,9 +138,7 @@ func NewIsolate() *Isolate {
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
 	iso := &Isolate{C.v8_Isolate_New(s.data)}
-	runtime.SetFinalizer(iso, func(iso *Isolate) {
-		iso.release()
-	})
+	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
 
@@ -162,9 +157,7 @@ func (i *Isolate) NewContext() *Context {
 	contexts[nextContextId] = ctx
 	contextsMutex.Unlock()
 
-	runtime.SetFinalizer(ctx, func(ctx *Context) {
-		ctx.release()
-	})
+	runtime.SetFinalizer(ctx, (*Context).release)
 
 	return ctx
 }
@@ -200,11 +193,9 @@ type Context struct {
 	ptr C.ContextPtr
 
 	callbacks      map[int]callbackInfo
-	callbacksMutex sync.RWMutex
 	nextCallbackId int
 
-	values      map[*Value]bool
-	valuesMutex sync.RWMutex
+	values map[*Value]bool
 }
 type callbackInfo struct {
 	Callback
@@ -230,11 +221,9 @@ func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 // value is created but NOT visible in the Context until it is explicitly passed
 // to the Context (either via a .Set() call or as a callback return value).
 func (ctx *Context) Bind(name string, cb Callback) *Value {
-	ctx.callbacksMutex.Lock()
 	ctx.nextCallbackId++
 	id := ctx.nextCallbackId
 	ctx.callbacks[id] = callbackInfo{cb, name}
-	ctx.callbacksMutex.Unlock()
 	cbIdStr := C.CString(fmt.Sprintf("%d:%d", ctx.id, id))
 	defer C.free(unsafe.Pointer(cbIdStr))
 	nameStr := C.CString(name)
@@ -274,13 +263,9 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
 
 	val := &Value{ctx, ptr}
 	// Track allocated Persistent values so we can clean up.
-	ctx.valuesMutex.Lock()
 	ctx.values[val] = true
-	ctx.valuesMutex.Unlock()
 
-	runtime.SetFinalizer(val, func(val *Value) {
-		val.release()
-	})
+	runtime.SetFinalizer(val, (*Value).release)
 	return val
 }
 
@@ -378,9 +363,7 @@ func (v *Value) New(args ...*Value) (*Value, error) {
 
 func (v *Value) release() {
 	if v.ctx != nil {
-		v.ctx.valuesMutex.Lock()
 		delete(v.ctx.values, v)
-		v.ctx.valuesMutex.Unlock()
 	}
 	if v.ptr != nil {
 		C.v8_Value_Release(v.ctx.ptr, v.ptr)
@@ -446,9 +429,7 @@ func go_callback_handler(
 	ctx := contexts[ctxId]
 	contextsMutex.RUnlock()
 
-	ctx.callbacksMutex.RLock()
 	info := ctx.callbacks[int(callbackId)]
-	ctx.callbacksMutex.RUnlock()
 	if info.Callback == nil {
 		// Everything is bad -- this should never happen.
 		panic(fmt.Errorf("No such registered callback: %s", info.name))
