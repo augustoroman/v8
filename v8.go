@@ -11,7 +11,7 @@ package v8
 // #include <stdlib.h>
 // #include <string.h>
 // #include "v8_c_bridge.h"
-// #cgo CXXFLAGS: -I${SRCDIR} -I${SRCDIR}/include -std=c++11
+// #cgo CXXFLAGS: -I${SRCDIR} -I${SRCDIR}/include -std=c++11 -fno-rtti
 // #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libbase -lv8_snapshot -lv8_libsampler -lv8_libplatform -ldl -pthread
 import "C"
 
