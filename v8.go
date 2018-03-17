@@ -87,6 +87,7 @@ func (s *Snapshot) release() {
 	}
 	s.data.ptr = nil
 	s.data.len = 0
+	runtime.SetFinalizer(s, nil)
 }
 
 // Export returns the VM state data as a byte slice.
@@ -144,14 +145,11 @@ func (i *Isolate) NewContext() *Context {
 		iso:       i,
 		ptr:       C.v8_Isolate_NewContext(i.ptr),
 		callbacks: map[int]callbackInfo{},
-		values:    map[*Value]bool{},
 	}
 
 	contextsMutex.Lock()
 	nextContextId++
-	id := nextContextId
-	ctx.id = id
-	contexts[id] = ctx
+	ctx.id = nextContextId
 	contextsMutex.Unlock()
 
 	runtime.SetFinalizer(ctx, (*Context).release)
@@ -163,7 +161,11 @@ func (i *Isolate) NewContext() *Context {
 // Contexts that are executing.  This may be called from any goroutine at any
 // time.
 func (i *Isolate) Terminate() { C.v8_Isolate_Terminate(i.ptr) }
-func (i *Isolate) release()   { C.v8_Isolate_Release(i.ptr); i.ptr = nil }
+func (i *Isolate) release() {
+	C.v8_Isolate_Release(i.ptr)
+	i.ptr = nil
+	runtime.SetFinalizer(i, nil)
+}
 
 func (i *Isolate) convertErrorMsg(error_msg C.Error) error {
 	if error_msg.ptr == nil {
@@ -185,8 +187,6 @@ type Context struct {
 
 	callbacks      map[int]callbackInfo
 	nextCallbackId int
-
-	values map[*Value]bool
 }
 type callbackInfo struct {
 	Callback
@@ -202,7 +202,9 @@ func (ctx *Context) split(ret C.ValueErrorPair) (*Value, error) {
 func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 	js_code_cstr := C.CString(jsCode)
 	filename_cstr := C.CString(filename)
+	addRef(ctx)
 	ret := C.v8_Context_Run(ctx.ptr, js_code_cstr, filename_cstr)
+	decRef(ctx)
 	C.free(unsafe.Pointer(js_code_cstr))
 	C.free(unsafe.Pointer(filename_cstr))
 	return ctx.split(ret)
@@ -228,16 +230,17 @@ func (ctx *Context) Global() *Value {
 	return ctx.newValue(C.v8_Context_Global(ctx.ptr))
 }
 func (ctx *Context) release() {
-	for val := range ctx.values {
-		val.release()
-	}
 	if ctx.ptr != nil {
 		C.v8_Context_Release(ctx.ptr)
 	}
 	ctx.ptr = nil
+
 	contextsMutex.Lock()
 	delete(contexts, ctx.id)
 	contextsMutex.Unlock()
+
+	runtime.SetFinalizer(ctx, nil)
+	ctx.iso = nil // Allow the isolate to be GC'd if we're the last ptr to it.
 }
 
 // Terminate will interrupt any processing going on in the context.  This may
@@ -249,8 +252,6 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
 	}
 
 	val := &Value{ctx, ptr}
-	// Track allocated Persistent values so we can clean up.
-	ctx.values[val] = true
 	runtime.SetFinalizer(val, (*Value).release)
 	return val
 }
@@ -331,7 +332,9 @@ func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
 	if this != nil {
 		thisPtr = this.ptr
 	}
+	addRef(v.ctx)
 	result := C.v8_Value_Call(v.ctx.ptr, v.ptr, thisPtr, C.int(len(args)), &argPtrs[0])
+	decRef(v.ctx)
 	return v.ctx.split(result)
 }
 
@@ -343,19 +346,19 @@ func (v *Value) New(args ...*Value) (*Value, error) {
 	for i := range args {
 		argPtrs[i] = args[i].ptr
 	}
+	addRef(v.ctx)
 	result := C.v8_Value_New(v.ctx.ptr, v.ptr, C.int(len(args)), &argPtrs[0])
+	decRef(v.ctx)
 	return v.ctx.split(result)
 }
 
 func (v *Value) release() {
-	if v.ctx != nil {
-		delete(v.ctx.values, v)
-	}
 	if v.ptr != nil {
 		C.v8_Value_Release(v.ctx.ptr, v.ptr)
 	}
 	v.ctx = nil
 	v.ptr = nil
+	runtime.SetFinalizer(v, nil)
 }
 
 // MarshalJSON implements the json.Marshaler interface using the JSON.stringify
@@ -382,12 +385,55 @@ func (v *Value) MarshalJSON() ([]byte, error) {
 }
 
 //
-//
+// callback magic
 //
 
-var contexts = map[int]*Context{}
+// Because of the rules of Go <--> C pointer interchange
+// (https://golang.org/cmd/cgo/#hdr-Passing_pointers), we can't pass a *Context
+// pointer into the C code. That means that when V8 wants to execute a callback
+// back into the Go code, we have to find some other way of determining which
+// context the callback was associated with.
+//
+// One way (as described at https://github.com/golang/go/wiki/cgo) is to create
+// a registry that keeps the pointers all in Go and uses an arbitrary numeric
+// handle to pass to C instead.
+//
+// One tricky side-affect is that this holds a pointer to our Context. Well,
+// that's obvious, right? But that means our Context can't be GC'd. Oops.
+//
+// To work around this, we'll dynamically create the registered entry each time
+// we call into V8 and remove when we're done. Specifically, we'll use a ref
+// count just in case somebody gets cute and calls back into V8 from a callback.
+//
+var contexts = map[int]*refCount{}
 var contextsMutex sync.RWMutex
 var nextContextId int
+
+type refCount struct {
+	ptr   *Context
+	count int
+}
+
+func addRef(ctx *Context) {
+	contextsMutex.Lock()
+	ref := contexts[ctx.id]
+	if ref == nil {
+		ref = &refCount{ctx, 0}
+		contexts[ctx.id] = ref
+	}
+	ref.count++
+	contextsMutex.Unlock()
+}
+func decRef(ctx *Context) {
+	contextsMutex.Lock()
+	ref := contexts[ctx.id]
+	if ref == nil || ref.count <= 1 {
+		delete(contexts, ctx.id)
+	} else {
+		ref.count--
+	}
+	contextsMutex.Unlock()
+}
 
 //export go_callback_handler
 func go_callback_handler(
@@ -409,7 +455,12 @@ func go_callback_handler(
 	callbackId, _ := strconv.Atoi(parts[1])
 
 	contextsMutex.RLock()
-	ctx := contexts[ctxId]
+	ref := contexts[ctxId]
+	if ref == nil {
+		panic(fmt.Errorf(
+			"Missing context pointer during callback for context #%d", ctxId))
+	}
+	ctx := ref.ptr
 	contextsMutex.RUnlock()
 
 	info := ctx.callbacks[int(callbackId)]

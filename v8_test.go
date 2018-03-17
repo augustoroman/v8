@@ -511,6 +511,22 @@ func TestSnapshot(t *testing.T) {
 	}
 }
 
+func TestSnapshotBadJs(t *testing.T) {
+	t.Parallel()
+	snapshot := CreateSnapshot("This isn't yo mama's snapshot!")
+
+	if snapshot.data.ptr != nil {
+		t.Error("Expected nil ptr")
+	}
+
+	ctx := NewIsolateWithSnapshot(snapshot).NewContext()
+
+	_, err := ctx.Eval(`zzz`, "script.js")
+	if err == nil {
+		t.Fatal("Expected error because zzz should be undefined.")
+	}
+}
+
 func TestEs6Destructuring(t *testing.T) {
 	if Version.Major < 5 {
 		t.Skip("V8 versions before 5.* don't support destructuring.")
@@ -833,5 +849,99 @@ func TestCircularReferenceJsonMarshalling(t *testing.T) {
 		t.Fatalf("Expected error marshalling circular ref, but got: `%s`", data)
 	} else if !strings.Contains(err.Error(), "circular") {
 		t.Errorf("Expected a circular reference error, but got: %v", err)
+	}
+}
+
+func TestIsolateFinalizer(t *testing.T) {
+	t.Parallel()
+	iso := NewIsolate()
+
+	fin := make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(iso, nil)
+	runtime.SetFinalizer(iso, func(iso *Isolate) {
+		close(fin)
+		iso.release()
+	})
+	iso = nil
+
+	if !runGcUntilReceivedOrTimedOut(fin, 4*time.Second) {
+		t.Fatal("finalizer of iso didn't run, no context is associated with the iso.")
+	}
+
+	iso = NewIsolate()
+	iso.NewContext()
+
+	fin = make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(iso, nil)
+	runtime.SetFinalizer(iso, func(iso *Isolate) {
+		close(fin)
+		iso.release()
+	})
+	iso = nil
+
+	if !runGcUntilReceivedOrTimedOut(fin, 4*time.Second) {
+		t.Fatal("finalizer of iso didn't run, iso created one context.")
+	}
+}
+
+func TestContextFinalizer(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	fin := make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(ctx, nil)
+	runtime.SetFinalizer(ctx, func(ctx *Context) {
+		close(fin)
+		ctx.release()
+	})
+	ctx = nil
+
+	if !runGcUntilReceivedOrTimedOut(fin, 4*time.Second) {
+		t.Fatal("finalizer of ctx didn't run")
+	}
+}
+
+func TestContextFinalizerWithValues(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	greet := func(in CallbackArgs) (*Value, error) {
+		return in.Context.Create("Hello " + in.Arg(0).String())
+	}
+	ctx.Global().Set("greet", ctx.Bind("greet", greet))
+	val, err := ctx.Eval("greet('bob')", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(val.String())
+
+	fin := make(chan bool)
+	// Reset the finalizer so we test if it is working
+	runtime.SetFinalizer(ctx, nil)
+	runtime.SetFinalizer(ctx, func(ctx *Context) {
+		close(fin)
+		ctx.release()
+	})
+	ctx = nil
+
+	if !runGcUntilReceivedOrTimedOut(fin, 4*time.Second) {
+		t.Fatal("finalizer of ctx didn't run after creating a value")
+	}
+}
+
+func runGcUntilReceivedOrTimedOut(signal <-chan bool, timeout time.Duration) bool {
+	expired := time.After(timeout)
+	for {
+		select {
+		case <-signal:
+			return true
+		case <-expired:
+			return false
+		case <-time.After(10 * time.Millisecond):
+			runtime.GC()
+		}
 	}
 }
