@@ -20,13 +20,7 @@ if [[ ! -d "${V8_DIR}/include" ]]; then
     exit 1
 fi
 
-if [[ "$(go env GOOS)" -eq "linux" ]]; then
-    V8_LIBS="out/native/obj.target/src"
-elif [[ "$(go env GOOS)" -eq "darwin" ]]; then
-    V8_LIBS="out/native"
-else
-    V8_LIBS="out/native" # take a guess
-fi
+V8_LIBS="out.gn/x64.release/obj"
 
 if [[ ! -d "${V8_DIR}/${V8_LIBS}" ]]; then
     echo "ERROR: ${V8_DIR}/${V8_LIBS} directory does not exist." >&2

@@ -17,7 +17,8 @@ fetch v8
 cd v8
 git checkout ${V8_VERSION}
 gclient sync
-make -j 4 native GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
+tools/dev/v8gen.py x64.release -- v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true is_component_build=false
+ninja -C out.gn/x64.release v8_libbase v8_libplatform v8_base v8_snapshot
 popd
 ./symlink.sh ${CHROMIUM_DIR}/v8
 go install .

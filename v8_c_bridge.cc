@@ -74,7 +74,7 @@ std::string str(v8::Local<v8::Value> value) {
   return *s;
 }
 
-std::string report_exception(v8::Isolate* isolate, v8::TryCatch& try_catch) {
+std::string report_exception(v8::Isolate* isolate, v8::Local<v8::Context> ctx, v8::TryCatch& try_catch) {
   std::stringstream ss;
   ss << "Uncaught exception: ";
 
@@ -84,18 +84,32 @@ std::string report_exception(v8::Isolate* isolate, v8::TryCatch& try_catch) {
   if (!try_catch.Message().IsEmpty()) {
     if (!try_catch.Message()->GetScriptResourceName()->IsUndefined()) {
       ss << std::endl
-         << "at " << str(try_catch.Message()->GetScriptResourceName()) << ":"
-         << try_catch.Message()->GetLineNumber() << ":"
-         << try_catch.Message()->GetStartColumn() << std::endl
-         << "  " << str(try_catch.Message()->GetSourceLine()) << std::endl
-         << "  ";
-      int start = try_catch.Message()->GetStartColumn();
-      int end = try_catch.Message()->GetEndColumn();
-      for (int i = 0; i < start; i++) {
-        ss << " ";
+         << "at " << str(try_catch.Message()->GetScriptResourceName());
+
+      v8::Maybe<int> line_no = try_catch.Message()->GetLineNumber(ctx);
+      v8::Maybe<int> start = try_catch.Message()->GetStartColumn(ctx);
+      v8::Maybe<int> end = try_catch.Message()->GetEndColumn(ctx);
+      v8::MaybeLocal<v8::String> sourceLine = try_catch.Message()->GetSourceLine(ctx);
+
+      if (line_no.IsJust()) {
+        ss << ":" << line_no.ToChecked();
       }
-      for (int i = start; i < end; i++) {
-        ss << "^";
+      if (start.IsJust()) {
+        ss << ":" << start.ToChecked();
+      }
+      if (!sourceLine.IsEmpty()) {
+        ss << std::endl
+           << "  " << str(sourceLine.ToLocalChecked());
+      }
+      if (start.IsJust() && end.IsJust()) {
+        ss << std::endl
+           << "  ";
+        for (int i = 0; i < start.ToChecked(); i++) {
+          ss << " ";
+        }
+        for (int i = start.ToChecked(); i < end.ToChecked(); i++) {
+          ss << "^";
+        }
       }
     }
   }
@@ -139,7 +153,7 @@ ContextPtr v8_Isolate_NewContext(IsolatePtr isolate_ptr) {
   ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
   v8::HandleScope handle_scope(isolate);
 
-  v8::V8::SetCaptureStackTraceForUncaughtExceptions(true);
+  isolate->SetCaptureStackTraceForUncaughtExceptions(true);
 
   v8::Local<v8::ObjectTemplate> globals = v8::ObjectTemplate::New(isolate);
 
@@ -150,7 +164,7 @@ ContextPtr v8_Isolate_NewContext(IsolatePtr isolate_ptr) {
 }
 void v8_Isolate_Terminate(IsolatePtr isolate_ptr) {
   v8::Isolate* isolate = static_cast<v8::Isolate*>(isolate_ptr);
-  v8::V8::TerminateExecution(isolate);
+  isolate->TerminateExecution();
 }
 void v8_Isolate_Release(IsolatePtr isolate_ptr) {
   if (isolate_ptr == nullptr) {
@@ -167,7 +181,7 @@ ValueErrorPair v8_Context_Run(ContextPtr ctxptr, const char* code, const char* f
   v8::Isolate::Scope isolate_scope(isolate);
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(ctx->ptr.Get(isolate));
-  v8::TryCatch try_catch;
+  v8::TryCatch try_catch(isolate);
   try_catch.SetVerbose(false);
 
   filename = filename ? filename : "(no file)";
@@ -179,14 +193,14 @@ ValueErrorPair v8_Context_Run(ContextPtr ctxptr, const char* code, const char* f
       v8::String::NewFromUtf8(isolate, filename));
 
   if (script.IsEmpty()) {
-    res.error_msg = DupString(report_exception(isolate, try_catch));
+    res.error_msg = DupString(report_exception(isolate, ctx->ptr.Get(isolate), try_catch));
     return res;
   }
 
   v8::Local<v8::Value> result = script->Run();
 
   if (result.IsEmpty()) {
-    res.error_msg = DupString(report_exception(isolate, try_catch));
+    res.error_msg = DupString(report_exception(isolate, ctx->ptr.Get(isolate), try_catch));
   } else {
     res.Value = static_cast<PersistentValuePtr>(new Value(isolate, result));
   }
@@ -386,7 +400,7 @@ ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
                              int argc, PersistentValuePtr* argvptr) {
   VALUE_SCOPE(ctxptr);
 
-  v8::TryCatch try_catch;
+  v8::TryCatch try_catch(isolate);
   try_catch.SetVerbose(false);
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
@@ -412,7 +426,7 @@ ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, try_catch))};
+    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
   return (ValueErrorPair){
@@ -426,7 +440,7 @@ ValueErrorPair v8_Value_New(ContextPtr ctxptr,
                             int argc, PersistentValuePtr* argvptr) {
   VALUE_SCOPE(ctxptr);
 
-  v8::TryCatch try_catch;
+  v8::TryCatch try_catch(isolate);
   try_catch.SetVerbose(false);
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
@@ -445,7 +459,7 @@ ValueErrorPair v8_Value_New(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, try_catch))};
+    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
   return (ValueErrorPair){

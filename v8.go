@@ -12,7 +12,7 @@ package v8
 // #include <string.h>
 // #include "v8_c_bridge.h"
 // #cgo CXXFLAGS: -I${SRCDIR} -I${SRCDIR}/include -std=c++11
-// #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libbase -lv8_snapshot -lv8_libsampler -lv8_libplatform -ldl -pthread
+// #cgo LDFLAGS: -L${SRCDIR}/libv8 -lv8_base -lv8_libbase -lv8_snapshot -lv8_libplatform -ldl -pthread
 import "C"
 
 import (
