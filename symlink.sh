@@ -20,7 +20,7 @@ if [[ ! -d "${V8_DIR}/include" ]]; then
     exit 1
 fi
 
-V8_LIBS="out.gn/x64.release/obj"
+V8_LIBS="out.gn/golib/obj"
 
 if [[ ! -d "${V8_DIR}/${V8_LIBS}" ]]; then
     echo "ERROR: ${V8_DIR}/${V8_LIBS} directory does not exist." >&2
