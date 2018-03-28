@@ -1,3 +1,4 @@
+
 # V8 Bindings for Go [![Build Status](https://travis-ci.org/augustoroman/v8.svg?branch=master)](https://travis-ci.org/augustoroman/v8)  [![Go Report Card](https://goreportcard.com/badge/github.com/augustoroman/v8)](https://goreportcard.com/report/github.com/augustoroman/v8)  [![GoDoc](https://godoc.org/github.com/augustoroman/v8?status.svg)](https://godoc.org/github.com/augustoroman/v8)
 
 The v8 bindings allow a user to execute javascript from within a go executable.
@@ -12,60 +13,70 @@ the table of current chrome and the associated v8 releases at:
 
   http://omahaproxy.appspot.com/
 
-# Compiling
+# Building  v8
+## Prep
+You need to build v8 statically and place it in a location cgo knows about. This requires special tooling and a build directory. Using the [official instructions](https://github.com/v8/v8/wiki/Building-from-Source) as a guide, the general steps of this process are:
 
-In order for the bindings to compile correctly, one needs to:
+1. `go get` the binding library (this library)
+1. Create a v8 build directory
+1. [Install depot tools](http://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up)
+1. Configure environment
+1. Download v8
+1. Build v8
+1. Copy or symlink files to the go library path
+1. Build the bindings
 
-1. Compile v8 as a static library.
-2. Let cgo know where the library is located.
+```
+go get github.com/augustoroman/v8
+export V8_GO=$GOPATH/src/github.com/augustroman/v8
+export V8_BUILD=$V8_GO/v8build #or wherever you like
+mkdir -p $V8_BUILD
+cd $V8_BUILD
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+export PATH=$PATH:$V8_BUILD/depot_tools
+fetch v8 #pull down v8 (this will take some time)
+cd v8
+gclient sync
+```
 
-## Compiling v8.
+## Linux
+```
+./build/install-build-deps.sh #only needed once
+gn gen out.gn/golib --args="is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library = true"
+ninja -C out.gn/golib
+# go get some coffee
+```
 
-Download v8: https://github.com/v8/v8/wiki/Using%20Git
+## OSX
 
-Lets say you've checked out the v8 source into `$V8`, go-v8 into `$GO_V8` and
-want to place the static v8 library into `$GO_V8/libv8/`.  (For example,
-`export GO_V8=$GOPATH/src/github.com/augustoroman/v8`)
-
-
-### Linux
-
-Build:
-
-    make native GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
-
-If build system produces a thin archive, you want to make it into a fat one:
-
-    for lib in `find out/native/obj.target/src/ -name '*.a'`;
-      do ar -t $lib | xargs ar rvs $lib.new && mv -v $lib.new $lib;
-    done
-
-Symlink the libraries and include directory to the Go package dir:
-
-    ln -s `pwd`/out/native/obj.target/src ${GO_V8}/libv8
-    ln -s `pwd`/include ${GO_V8}/include
-
-
-### Mac
-
-To build: (substitute in your OS X version: `sw_vers -productVersion`)
-
-    GYP_DEFINES="mac_deployment_target=10.11" \
-    make -j5 native GYPFLAGS="-Dv8_use_external_startup_data=0 -Dv8_enable_i18n_support=0 -Dv8_enable_gdbjit=0"
+```
+export V8_OSX_SDK_VERSION=`xcrun --sdk macosx --show-sdk-path|awk -F "/" '{print $NF}'|grep -o '\d\+\.\d\+'`
+gn gen out.gn/golib --args="mac_deployment_target=\"$V8_OSX_SDK_VERSION\" is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library = true"
+ninja -C out.gn/golib
+# go get some coffee
+```
 
 On MacOS, the resulting libraries contain debugging information by default (even
 though we've built the release version). As a result, the binaries are 30x
 larger, then they should be. Strip that to reduce the size of the archives (and
 build times!) very significantly:
 
-    strip -S out/native/libv8_*.a
+```
+strip -S $V8_BUILD/v8/out.gn/golib/obj/*.a
+```
 
-Symlink the libraries and include directory to the Go package dir:
+## Symlinking
+Now you can create symlinks so that cgo can associate the v8 binaries with the go library.
 
-    ln -s `pwd`/out/native ${GO_V8}/libv8
-    ln -s `pwd`/include ${GO_V8}/include
+```
+cd $V8_GO
+./symlink.sh $V8_BUILD/v8
+```
 
-## Reference
+## Verifying
+You should be done! Try running `go test`
+
+# Reference
 
 Also relevant is the v8 API release changes doc:
 
