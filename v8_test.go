@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"reflect"
 )
 
 func TestRunSimpleJS(t *testing.T) {
@@ -61,6 +62,25 @@ func TestJsReturnUndefined(t *testing.T) {
 	if str := res.String(); str != "undefined" {
 		t.Errorf("Expected 'undefined', got %q", str)
 	}
+	if b := res.Bytes(); b != nil {
+		t.Errorf("Expected failure to map to bytes but got byte array of length %d", len(b))
+	}
+}
+
+func TestJsReturnArrayBuffer(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	res, err := ctx.Eval(`new ArrayBuffer(5)`, "undefined.js")
+	if err != nil {
+		t.Fatalf("Error evaluating javascript, err: %v", err)
+	}
+	b := res.Bytes()
+	if b == nil {
+		t.Errorf("Expected non-nil byte array but got nil buffer")
+	}
+	if len(b) != 5 {
+		t.Errorf("Expected byte array of length 5 but got %d", len(b))
+	}
 }
 
 func TestJsThrowString(t *testing.T) {
@@ -102,6 +122,78 @@ func TestReadFieldFromObject(t *testing.T) {
 	}
 	if str := val.String(); str != "bar" {
 		t.Errorf("Expected 'bar', got %q", str)
+	}
+}
+
+func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
+	t.Parallel()
+
+	ctx := NewIsolate().NewContext()
+	val, err := ctx.Create(struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := val.Get("Data")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := data.GetIndex(1)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v.String(); str != "2" {
+		t.Errorf("Wrong value, expected 2, got %s", str)
+	}
+
+	v2, err := data.GetIndex(17)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v2.String(); str != "undefined" {
+		t.Errorf("Expected undefined, got %s", str)
+	}
+
+	v3, err := data.GetIndex(2)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v3.String(); str != "3" {
+		t.Errorf("Expected undefined, got %s", str)
+	}
+
+	data.SetIndex(2, v)
+	v2, err = data.GetIndex(2)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v2.String(); str != "2" {
+		t.Errorf("Expected 2, got %s", str)
+	}
+
+	largeValue, err := ctx.Create(int(500))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 500 truncates to 500 % 256 == 244
+	data.SetIndex(2, largeValue)
+	v4, err := data.GetIndex(2)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v4.String(); str != "244" {
+		t.Errorf("Expected 244, got %s", str)
+	}
+
+	negativeValue, err := ctx.Create(int(-55))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// -55 "truncates" to -55 % 256 == 201
+	data.SetIndex(2, negativeValue)
+	v5, err := data.GetIndex(2)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v5.String(); str != "201" {
+		t.Errorf("Expected 201, got %s", str)
 	}
 }
 
@@ -700,6 +792,8 @@ func TestCreateComplex(t *testing.T) {
 			"list": []float64{1, 2, 3},
 		}},
 		{"*****Struct", false, zzz5},
+		{"bufbuf", false, struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3,4}}},
+		{"emptybuf", false, struct {Data []byte `v8:"arraybuffer"`}{[]byte{}}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -730,7 +824,86 @@ func TestCreateComplex(t *testing.T) {
 	} else if str := res.String(); str != "BOOM!" {
 		t.Errorf("Expected 'BOOM1', but got %q", str)
 	}
+
+	if res, err := ctx.Eval(`mega[3].Sub.Data.byteLength`, "test.js"); err != nil {
+		t.Fatal(err)
+	} else if str := res.String(); str != "4" {
+		t.Errorf("Expected array buffer length of '4', but got %q", str)
+	}
+
+	if res, err := ctx.Eval(`new Uint8Array(mega[3].Sub.Data)[2]`, "test.js"); err != nil {
+		t.Fatal(err)
+	} else if str := res.String(); str != "3" {
+		t.Errorf("Expected array buffer value at index 2 of '3', but got %q", str)
+	}
+
+	if res, err := ctx.Eval(`mega[4].Sub.Data.byteLength`, "test.js"); err != nil {
+		t.Fatal(err)
+	} else if str := res.String(); str != "0" {
+		t.Errorf("Expected empty array buffer length of '0', but got %q", str)
+	}
 }
+
+func TestJsCreateArrayBufferRoundtrip(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	val, err := ctx.Create(struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3,4}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx.Global().Set("buf", val)
+
+	if _, err := ctx.Eval(`
+		var view = new Uint8Array(buf.Data)
+		view[3] = view[0] + view[1] + view[2]
+		`, "test.js"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := val.Get("Data")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v1, err := data.GetIndex(0)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v1.String(); str != "1" {
+		t.Errorf("Expected first value of '1' but got %q", str)
+	}
+
+	v2, err := data.GetIndex(3)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v2.String(); str != "6" {
+		t.Errorf("Expected fourth value of '6' but got %q", str)
+	}
+
+	err = data.SetIndex(2, v1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v3, err := data.GetIndex(2)
+	if err != nil {
+		t.Fatal(err)
+	} else if str := v3.String(); str != "1" {
+		t.Errorf("Expected third value of '1' but got %q", str)
+	}
+
+	bytes := data.Bytes()
+	if !reflect.DeepEqual(bytes, []byte{1,2,1,6}) {
+		t.Errorf("Expected byte array [1,2,1,6] but got %q", bytes)
+	}
+
+	// Out of range
+	err = data.SetIndex(7, v1)
+	if err == nil {
+		t.Errorf("Expected error assigning out of range of array buffer")
+	}
+}
+
 
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()

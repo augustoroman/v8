@@ -55,6 +55,16 @@ var valuePtrType = reflect.TypeOf((*Value)(nil))
 //        Bar: "c",
 //    }
 // Also, embedded structs (or pointers-to-structs) will get inlined.
+//
+// Byte slices tagged as 'v8:"arraybuffer"' will be converted into a javascript
+// ArrayBuffer object for more efficient conversion. For example:
+//    var y = struct {
+//        Buf     []byte `v8:"arraybuffer"`
+//    }{[]byte{1,2,3}}
+// will be converted as
+//    {
+//       Buf: new Uint8Array([1,2,3]).buffer
+//    }
 func (ctx *Context) Create(val interface{}) (*Value, error) {
 	return ctx.create(reflect.ValueOf(val))
 }
@@ -75,6 +85,10 @@ func getJsName(fieldName, jsonTag string) string {
 }
 
 func (ctx *Context) create(val reflect.Value) (*Value, error) {
+	return ctx.createWithTags(val, []string{})
+}
+
+func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, error) {
 	if val.IsValid() && val.Type() == valuePtrType {
 		return val.Interface().(*Value), nil
 	}
@@ -132,17 +146,35 @@ func (ctx *Context) create(val reflect.Value) (*Value, error) {
 		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
 		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())})
-		for i := 0; i < val.Len(); i++ {
-			v, err := ctx.create(val.Index(i))
-			if err != nil {
-				return nil, fmt.Errorf("index %d: %v", i, err)
-			}
-			if err := ob.SetIndex(i, v); err != nil {
-				return nil, err
+		arrayBuffer := false
+		for _, tag := range tags {
+			if strings.TrimSpace(tag) == "arraybuffer" {
+				arrayBuffer = true
 			}
 		}
-		return ob, nil
+
+		if arrayBuffer && val.Kind() == reflect.Slice && val.Type().Elem().Kind() == reflect.Uint8 {
+			// Special case for byte array -> arraybuffer
+			bytes := val.Bytes()
+			var ptr *C.uchar
+			if bytes != nil && len(bytes) > 0 {
+				ptr = (*C.uchar)(unsafe.Pointer(&val.Bytes()[0]))
+			}
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())})
+			return ob, nil
+		} else {
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())})
+			for i := 0; i < val.Len(); i++ {
+				v, err := ctx.create(val.Index(i))
+				if err != nil {
+					return nil, fmt.Errorf("index %d: %v", i, err)
+				}
+				if err := ob.SetIndex(i, v); err != nil {
+					return nil, err
+				}
+			}
+			return ob, nil
+		}
 	}
 	panic("Unknown kind!")
 }
@@ -177,7 +209,8 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 			continue // skip unexported fields
 		}
 
-		v, err := ctx.create(val.Field(i))
+		v8Tags := strings.Split(f.Tag.Get("v8"), ",")
+		v, err := ctx.createWithTags(val.Field(i), v8Tags)
 		if err != nil {
 			return fmt.Errorf("field %q: %v", f.Name, err)
 		}
