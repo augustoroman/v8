@@ -280,6 +280,21 @@ type Value struct {
 	ptr C.PersistentValuePtr
 }
 
+// Bytes returns a byte slice extracted from this value when the value
+// is of type ArrayBuffer.
+// Values of other types return nil.
+func (v *Value) Bytes() []byte {
+	var len int
+	cptr := C.v8_Value_Bytes(v.ctx.ptr, v.ptr, (*C.int)(unsafe.Pointer(&len)))
+	if cptr == nil {
+		return nil
+	}
+
+	ret := make([]byte, len)
+	copy(ret, ((*[1 << 30]byte)(unsafe.Pointer(cptr)))[:len])
+	return ret
+}
+
 // String returns the string representation of the value using the ToString()
 // method.  For primitive types this is just the printable value.  For objects,
 // this is "[object Object]".  Functions print the function definition.

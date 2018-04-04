@@ -51,12 +51,13 @@ extern PersistentValuePtr v8_Context_RegisterCallback(ContextPtr ctx,
 extern PersistentValuePtr v8_Context_Global(ContextPtr ctx);
 extern void               v8_Context_Release(ContextPtr ctx);
 
-typedef enum { tSTRING, tBOOL, tNUMBER, tOBJECT, tARRAY, tUNDEFINED } ImmediateValueType;
+typedef enum { tSTRING, tBOOL, tNUMBER, tOBJECT, tARRAY, tARRAYBUFFER, tUNDEFINED } ImmediateValueType;
 typedef struct {
     ImmediateValueType Type;
     String Str;
     int BoolVal;
     double Num;
+    unsigned char* Bytes;
     int Len;
 } ImmediateValue;
 extern PersistentValuePtr v8_Context_Create(ContextPtr ctx, ImmediateValue val);
@@ -76,6 +77,7 @@ extern ValueErrorPair  v8_Value_New(ContextPtr ctx,
                                     int argc, PersistentValuePtr* argv);
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
 extern String v8_Value_String(ContextPtr ctx, PersistentValuePtr value);
+extern unsigned char* v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value, int * length);
 
 
 #ifdef __cplusplus

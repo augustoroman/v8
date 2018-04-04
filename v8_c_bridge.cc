@@ -290,11 +290,16 @@ PersistentValuePtr v8_Context_Create(ContextPtr ctxptr, ImmediateValue val) {
     case tSTRING:
       return new Value(isolate, v8::String::NewFromUtf8(
         isolate, val.Str.ptr, v8::NewStringType::kNormal, val.Str.len).ToLocalChecked());
-    case tNUMBER:    return new Value(isolate, v8::Number::New(isolate, val.Num));           break;
-    case tBOOL:      return new Value(isolate, v8::Boolean::New(isolate, val.BoolVal == 1)); break;
-    case tOBJECT:    return new Value(isolate, v8::Object::New(isolate));                    break;
-    case tARRAY:     return new Value(isolate, v8::Array::New(isolate, val.Len));            break;
-    case tUNDEFINED: return new Value(isolate, v8::Undefined(isolate));                      break;
+    case tNUMBER:      return new Value(isolate, v8::Number::New(isolate, val.Num));                    break;
+    case tBOOL:        return new Value(isolate, v8::Boolean::New(isolate, val.BoolVal == 1));          break;
+    case tOBJECT:      return new Value(isolate, v8::Object::New(isolate));                             break;
+    case tARRAY:       return new Value(isolate, v8::Array::New(isolate, val.Len));                     break;
+    case tARRAYBUFFER: {
+        v8::Local<v8::ArrayBuffer> buf = v8::ArrayBuffer::New(isolate, val.Len);
+        memcpy(buf->GetContents().Data(), val.Bytes, val.Len);
+        return new Value(isolate, buf);
+    } break;
+    case tUNDEFINED:   return new Value(isolate, v8::Undefined(isolate));                               break;
   }
   return nullptr;
 }
@@ -327,12 +332,22 @@ ValueErrorPair v8_Value_GetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr, i
     return (ValueErrorPair){nullptr, DupString("Not an object")};
   }
 
-  // We can safely call `ToLocalChecked`, because
-  // we've just created the local object above.
-  v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
-
+  v8::Local<v8::Value> obj;
+  if (maybeObject->IsArrayBuffer()) {
+    v8::ArrayBuffer* bufPtr = v8::ArrayBuffer::Cast(*maybeObject);
+    if (idx < bufPtr->GetContents().ByteLength()) {
+      obj = v8::Number::New(isolate, ((unsigned char*)bufPtr->GetContents().Data())[idx]);
+    } else {
+      obj = v8::Undefined(isolate);
+    }
+  } else {
+    // We can safely call `ToLocalChecked`, because
+    // we've just created the local object above.
+    v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
+    obj = object->Get(ctx, uint32_t(idx)).ToLocalChecked();
+  }
   ValueErrorPair res = { nullptr, nullptr };
-  res.Value = new Value(isolate, object->Get(ctx, uint32_t(idx)).ToLocalChecked());
+  res.Value = new Value(isolate, obj);
   return res;
 }
 
@@ -376,19 +391,29 @@ Error v8_Value_SetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr,
     return DupString("Not an object");
   }
 
-  // We can safely call `ToLocalChecked`, because
-  // we've just created the local object above.
-  v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
-
-
   Value* new_value = static_cast<Value*>(new_valueptr);
   v8::Local<v8::Value> new_value_local = new_value->Get(isolate);
-  v8::Maybe<bool> res = object->Set(ctx, uint32_t(idx), new_value_local);
+  if (maybeObject->IsArrayBuffer()) {
+    v8::ArrayBuffer* bufPtr = v8::ArrayBuffer::Cast(*maybeObject);
+    if (!new_value_local->IsNumber()) {
+      return DupString("Cannot assign non-number into array buffer");
+    } else if (idx >= bufPtr->GetContents().ByteLength()) {
+      return DupString("Cannot assign to an index beyond the size of an array buffer");
+    } else {
+      ((unsigned char*)bufPtr->GetContents().Data())[idx] = new_value_local->ToNumber(ctx).ToLocalChecked()->Value();
+    }
+  } else {
+    // We can safely call `ToLocalChecked`, because
+    // we've just created the local object above.
+    v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
 
-  if (res.IsNothing()) {
-    return DupString("Something went wrong -- set returned nothing.");
-  } else if (!res.FromJust()) {
-    return DupString("Something went wrong -- set failed.");
+    v8::Maybe<bool> res = object->Set(ctx, uint32_t(idx), new_value_local);
+
+    if (res.IsNothing()) {
+      return DupString("Something went wrong -- set returned nothing.");
+    } else if (!res.FromJust()) {
+      return DupString("Something went wrong -- set failed.");
+    }
   }
 
   return (Error){nullptr, 0};
@@ -487,5 +512,24 @@ String v8_Value_String(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   return DupString(value->ToString());
 }
 
+unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, int * length) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+
+  if (!value->IsArrayBuffer()) {
+    return NULL;
+  }
+
+  v8::ArrayBuffer* bufPtr = v8::ArrayBuffer::Cast(*value);
+  if (bufPtr == NULL) {
+    return NULL;
+  }
+
+  if (length != NULL) {
+    *length = bufPtr->GetContents().ByteLength();
+  }
+  return static_cast<unsigned char*>(bufPtr->GetContents().Data());
+}
 
 } // extern "C"
