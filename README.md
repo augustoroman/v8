@@ -50,8 +50,7 @@ ninja -C out.gn/golib
 ## OSX
 
 ```
-export V8_OSX_SDK_VERSION=`xcrun --sdk macosx --show-sdk-path|awk -F "/" '{print $NF}'|grep -o '\d\+\.\d\+'`
-gn gen out.gn/golib --args="mac_deployment_target=\"$V8_OSX_SDK_VERSION\" is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true"
+gn gen out.gn/golib --args="is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true"
 ninja -C out.gn/golib
 # go get some coffee
 ```
