@@ -42,26 +42,16 @@ gclient sync
 ## Linux
 ```
 ./build/install-build-deps.sh #only needed once
-gn gen out.gn/golib --args="is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true"
+gn gen out.gn/golib --args="strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true symbol_level=0 v8_experimental_extra_library_files=[] v8_extra_library_files=[]"
 ninja -C out.gn/golib
 # go get some coffee
 ```
 
 ## OSX
-
 ```
-gn gen out.gn/golib --args="is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true"
+gn gen out.gn/golib --args="is_official_build=true strip_debug_info=true v8_use_external_startup_data=false v8_enable_i18n_support=false v8_enable_gdbjit=false v8_static_library=true symbol_level=0 v8_experimental_extra_library_files=[] v8_extra_library_files=[]"
 ninja -C out.gn/golib
 # go get some coffee
-```
-
-On MacOS, the resulting libraries contain debugging information by default (even
-though we've built the release version). As a result, the binaries are 30x
-larger, then they should be. Strip that to reduce the size of the archives (and
-build times!) very significantly:
-
-```
-strip -S $V8_BUILD/v8/out.gn/golib/obj/*.a
 ```
 
 ## Symlinking
