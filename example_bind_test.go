@@ -36,7 +36,7 @@ func ExampleContext_Bind() {
 
 	// output:
 	// hello.js:2> Hello World!
-	// hello.js:3> function() { return "x" }
+	// hello.js:3> function () { return "x" }
 	// hello.js:4> 1,2,3
 }
 
