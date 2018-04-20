@@ -12,6 +12,36 @@ the table of current chrome and the associated v8 releases at:
 
 http://omahaproxy.appspot.com/
 
+# Using a pre-compiled v8
+
+v8 is very slow to compile, it's a large project. If you want to go that route, there are building instructions below.
+
+Fortunately, there's a project that pre-builds v8 for various platforms. It's packaged as a ruby gem called [libv8](https://rubygems.org/gems/libv8).
+
+```bash
+# Find the appropriate gem version for your OS,
+# visit: https://rubygems.org/gems/libv8/versions
+
+# Download the gem
+# MacOS Sierra is darwin-16, for v8 6.3.292.48.1 it looks like:
+curl https://rubygems.org/downloads/libv8-6.3.292.48.1-x86_64-darwin-16.gem > libv8.gem
+
+# Extract the gem (it's a tarball)
+tar -xf libv8.gem
+
+# Extract the `data.tar.gz` within
+cd libv8-6.3.292.48.1-x86_64-darwin-16
+tar -xzf data.tar.gz
+
+# Symlink the compiled libraries and includes
+ln -s $(pwd)/data/vendor/v8/include $GOPATH/src/github.com/augustoroman/v8/include
+ln -s $(pwd)/data/vendor/v8/out/x64.release $GOPATH/src/github.com/augustoroman/v8/libv8
+
+# Run the tests to make sure everything works
+cd $GOPATH/src/github.com/augustoroman/v8
+go test
+```
+
 # Building v8
 
 ## Prep
