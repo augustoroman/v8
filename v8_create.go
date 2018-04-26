@@ -143,6 +143,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 			if err := ob.Set(key.String(), v); err != nil {
 				return nil, err
 			}
+			v.release()
 		}
 		return ob, nil
 	case reflect.Struct:
@@ -175,6 +176,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 				if err := ob.SetIndex(i, v); err != nil {
 					return nil, err
 				}
+				v.release()
 			}
 			return ob, nil
 		}
@@ -220,6 +222,7 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 		if err := ob.Set(name, v); err != nil {
 			return err
 		}
+		v.release()
 	}
 
 	// Also export any methods of the struct that match the callback type.
@@ -238,6 +241,7 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 			if err := ob.Set(name, v); err != nil {
 				return err
 			}
+			v.release()
 		}
 	}
 	return nil
