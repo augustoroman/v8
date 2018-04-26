@@ -1209,10 +1209,19 @@ func TestIsolateLeak(t *testing.T) {
 	startTotalHeap := float64(iso.GetHeapStatistics().TotalHeapSize) / (1024.0 * 1024.0)
 	for i := 0; i < 10000; i++ {
 		func() {
+			suffix := fmt.Sprint(i)
 			v, err := ctx.Create(map[string]interface{}{
-				"hello": map[string]interface{}{
-					"world": map[string][]string{
-						"foo": []string{"bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz"},
+				"hello" + suffix: map[string]interface{}{
+					"world" + suffix: map[string][]string{
+						"foo" + suffix: []string{
+							"bar" + suffix, "baz" + suffix,
+							"bar" + suffix + suffix, "baz" + suffix + suffix,
+							"bar" + suffix + suffix + suffix, "baz" + suffix + suffix + suffix,
+							"bar" + suffix + suffix + suffix + suffix, "baz" + suffix + suffix + suffix + suffix,
+							"bar" + suffix + suffix + suffix, "baz" + suffix + suffix + suffix,
+							"bar" + suffix + suffix, "baz" + suffix + suffix,
+							"bar" + suffix, "baz" + suffix,
+						},
 					},
 				},
 			})
