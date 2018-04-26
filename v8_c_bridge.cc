@@ -21,7 +21,6 @@
   v8::Local<v8::Context> ctx(static_cast<Context*>(ctxptr)->ptr.Get(isolate));                \
   v8::Context::Scope context_scope(ctx);                 /* Scope to this context.         */
 
-
 extern "C" ValueErrorPair go_callback_handler(
     String id, CallerInfo info, int argc, PersistentValuePtr* argv);
 
@@ -530,6 +529,34 @@ unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, in
     *length = bufPtr->GetContents().ByteLength();
   }
   return static_cast<unsigned char*>(bufPtr->GetContents().Data());
+}
+
+HeapStatistics v8_Isolate_GetHeapStatistics(IsolatePtr isolate_ptr) {
+  if (isolate_ptr == nullptr) {
+    return HeapStatistics{0};
+  }
+  ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
+  v8::HeapStatistics hs;
+  isolate->GetHeapStatistics(&hs);
+  return HeapStatistics{
+    hs.total_heap_size(),
+    hs.total_heap_size_executable(),
+    hs.total_physical_size(),
+    hs.total_available_size(),
+    hs.used_heap_size(),
+    hs.heap_size_limit(),
+    hs.malloced_memory(),
+    hs.peak_malloced_memory(),
+    hs.does_zap_garbage()
+  };
+}
+
+void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
+  if (isolate_ptr == nullptr) {
+    return;
+  }
+  ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
+  isolate->LowMemoryNotification();
 }
 
 } // extern "C"

@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 #ifndef V8_C_BRIDGE_H
 #define V8_C_BRIDGE_H
 
@@ -16,6 +18,18 @@ typedef struct {
 
 typedef String Error;
 typedef String StartupData;
+
+typedef struct {
+    size_t total_heap_size;
+    size_t total_heap_size_executable;
+    size_t total_physical_size;
+    size_t total_available_size;
+    size_t used_heap_size;
+    size_t heap_size_limit;
+    size_t malloced_memory;
+    size_t peak_malloced_memory;
+    size_t does_zap_garbage;
+} HeapStatistics;
 
 typedef struct {
     PersistentValuePtr Value;
@@ -43,6 +57,9 @@ extern IsolatePtr v8_Isolate_New(StartupData data);
 extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate);
 extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
+
+extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
+extern void       v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
 
 extern ValueErrorPair     v8_Context_Run(ContextPtr ctx,
                                          const char* code, const char* filename);
@@ -78,7 +95,6 @@ extern ValueErrorPair  v8_Value_New(ContextPtr ctx,
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
 extern String v8_Value_String(ContextPtr ctx, PersistentValuePtr value);
 extern unsigned char* v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value, int * length);
-
 
 #ifdef __cplusplus
 }

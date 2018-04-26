@@ -16,6 +16,8 @@ env:
   # - V8_VERSION=6.2.414.42.1
   # - V8_VERSION=6.0.286.54.3
 
+go_import_path: github.com/augustoroman/v8
+
 # Need to download & compile v8 libraries before running the tests.
 install: ./travis-install-linux.sh
 
