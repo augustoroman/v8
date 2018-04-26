@@ -538,6 +538,8 @@ func go_callback_handler(
 	return C.ValueErrorPair{Value: res.ptr}
 }
 
+// HeapStatistics represent v8::HeapStatistics which are statistics
+// about the heap memory usage.
 type HeapStatistics struct {
 	TotalHeapSize           uint64
 	TotalHeapSizeExecutable uint64
