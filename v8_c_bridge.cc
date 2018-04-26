@@ -532,4 +532,22 @@ unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, in
   return static_cast<unsigned char*>(bufPtr->GetContents().Data());
 }
 
+HeapStatistics v8_Isolate_GetHeapStatistics(IsolatePtr isolate_ptr) {
+  if (isolate_ptr == nullptr) {
+    return HeapStatistics{0};
+  }
+  ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
+  v8::HeapStatistics hs;
+  isolate->GetHeapStatistics(&hs);
+  return HeapStatistics{hs.total_heap_size()};
+}
+
+void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
+  if (isolate_ptr == nullptr) {
+    return;
+  }
+  ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
+  isolate->LowMemoryNotification();
+}
+
 } // extern "C"

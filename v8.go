@@ -537,3 +537,16 @@ func go_callback_handler(
 
 	return C.ValueErrorPair{Value: res.ptr}
 }
+
+type HeapStatistics struct {
+	TotalHeapSize uint64
+}
+
+func (i *Isolate) GetHeapStatistics() HeapStatistics {
+	ch := C.v8_Isolate_GetHeapStatistics(i.ptr)
+	return HeapStatistics{uint64(ch.total_heap_size)}
+}
+
+func (i *Isolate) LowMemoryNotification() {
+	C.v8_Isolate_LowMemoryNotification(i.ptr)
+}

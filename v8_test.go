@@ -1197,3 +1197,41 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 			"is not-nil right now because you fixed that!  Got err = %v", err)
 	}
 }
+
+func TestIsolateLeak(t *testing.T) {
+	iso := NewIsolate()
+	ctx := iso.NewContext()
+	ctx.Eval(`function fn(){}`, "leak-test.js")
+	fn, err := ctx.Global().Get("fn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	startTotalHeap := float64(iso.GetHeapStatistics().TotalHeapSize) / (1024.0 * 1024.0)
+	for i := 0; i < 10000; i++ {
+		func() {
+			v, err := ctx.Create(map[string]interface{}{
+				"hello": map[string]interface{}{
+					"world": map[string][]string{
+						"foo": []string{"bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz", "bar", "baz"},
+					},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer v.release()
+			ret, err := fn.Call(nil, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ret.release()
+		}()
+	}
+	fn.release()
+	iso.LowMemoryNotification()
+	endTotalHeap := float64(iso.GetHeapStatistics().TotalHeapSize) / (1024.0 * 1024.0)
+	growth := endTotalHeap - startTotalHeap
+	if startTotalHeap != endTotalHeap {
+		t.Fatalf("bad heap %.1f MB -> %.1f MB (grew by %.1f MB)\n", startTotalHeap, endTotalHeap, growth)
+	}
+}

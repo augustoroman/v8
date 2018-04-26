@@ -1,6 +1,8 @@
 #ifndef V8_C_BRIDGE_H
 #define V8_C_BRIDGE_H
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,6 +35,13 @@ typedef struct { int Major, Minor, Build, Patch; } Version;
 extern Version version;
 
 typedef unsigned int uint32_t;
+
+typedef struct {
+  size_t total_heap_size;
+} HeapStatistics;
+
+extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
+extern void       v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
 
 // v8_init must be called once before anything else.
 extern void v8_init();
