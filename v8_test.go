@@ -1159,3 +1159,41 @@ func runGcUntilReceivedOrTimedOut(signal <-chan bool, timeout time.Duration) boo
 		}
 	}
 }
+
+// This is bad, and should be fixed! See https://github.com/augustoroman/v8/issues/21
+func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+	var logs []string
+	ctx.Global().Set("log", ctx.Bind("log", func(in CallbackArgs) (*Value, error) {
+		logs = append(logs, in.Arg(0).String())
+		return nil, nil
+	}))
+	output, err := ctx.Eval(`
+		log('start');
+		let p = new Promise((_, reject) => { log("reject:'err'"); reject('err'); });
+		p.then(v => log('then:'+v));
+		log('done');
+	`, `test.js`)
+
+	expectedLogs := []string{
+		"start",
+		"reject:'err'",
+		"done",
+	}
+
+	if !reflect.DeepEqual(logs, expectedLogs) {
+		t.Errorf("Wrong logs.\nGot: %#q\nExp: %#q", logs, expectedLogs)
+	}
+
+	// output should be 'undefined' because log('done') doesn't return anything.
+	if output.String() != "undefined" {
+		t.Errorf("Unexpected output value: %v", output)
+	}
+
+	if err != nil {
+		t.Errorf("Expected err to be nil since we ignore unhandled promise rejections. "+
+			"In the future, hopefully we'll handle these better -- in fact, maybe err "+
+			"is not-nil right now because you fixed that!  Got err = %v", err)
+	}
+}

@@ -8,6 +8,9 @@ package v8
 //   Value.Export(v) --> inverse of Context.Create()
 //   Proxy objects
 
+// BUG(aroman) Unhandled promise rejections are silently dropped
+// (see https://github.com/augustoroman/v8/issues/21)
+
 // #include <stdlib.h>
 // #include <string.h>
 // #include "v8_c_bridge.h"

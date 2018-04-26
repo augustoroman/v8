@@ -51,6 +51,44 @@ func Example() {
 	// Stack trace: SyntaxError: Unexpected identifier
 }
 
+func Example_microtasks() {
+	// Microtasks are automatically run when the Eval'd js code has finished but
+	// before Eval returns.
+
+	ctx := v8.NewIsolate().NewContext()
+
+	// Register a simple log function in js.
+	ctx.Global().Set("log", ctx.Bind("log", func(in v8.CallbackArgs) (*v8.Value, error) {
+		fmt.Println("log>", in.Arg(0).String())
+		return nil, nil
+	}))
+
+	// Run some javascript that schedules microtasks, like promises.
+	output, err := ctx.Eval(`
+        log('start');
+        let p = new Promise(resolve => { // this is called immediately
+            log('resolve:5');
+            resolve(5);
+        });
+        log('promise created');
+        p.then(v => log('then:'+v));     // this is scheduled in a microtask
+        log('done');                     // this is run before the microtask
+        'xyz'                            // this is the output of the script
+    `, "microtasks.js")
+
+	fmt.Println("output:", output)
+	fmt.Println("err:", err)
+
+	// output:
+	// log> start
+	// log> resolve:5
+	// log> promise created
+	// log> done
+	// log> then:5
+	// output: xyz
+	// err: <nil>
+}
+
 func ExampleContext_Create_basic() {
 	ctx := v8.NewIsolate().NewContext()
 
@@ -93,7 +131,7 @@ func ExampleContext_Create_callbacks() {
 	// can also be used to easily bind a complex object into the JS VM.
 	resetIdsCallback := func(in v8.CallbackArgs) (*v8.Value, error) {
 		nextId = 0
-		return ctx.Create(0)
+		return nil, nil
 	}
 	myIdAPI, _ := ctx.Create(map[string]interface{}{
 		"next":  getNextIdCallback,
