@@ -23,16 +23,19 @@ var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
 var valuePtrType = reflect.TypeOf((*Value)(nil))
 
-// Create maps Go values into JavaScript values in the Context.  Create can
-// automatically map the following types of values:
+// Create maps Go values into corresponding JavaScript values. This value is
+// created but NOT visible in the Context until it is explicitly passed to the
+// Context (either via a .Set() call or as a callback return value).
+//
+// Create can automatically map the following types of values:
 //   * bool
 //   * all integers and floats are mapped to JS numbers (float64)
 //   * strings
-//   * maps (keys must be strings)
-//   * structs
-//   * slices
-//   * pointers to any of the above
-//   * v8.Callback (automatically bind'd)
+//   * maps (keys must be strings, values must be convertible)
+//   * structs (exported field values must be convertible)
+//   * slices of convertible types
+//   * pointers to any convertible field
+//   * v8.Callback function (automatically bind'd)
 //   * *v8.Value (returned as-is)
 //
 // Any nil pointers are converted to undefined in JS.

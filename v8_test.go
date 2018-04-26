@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-	"reflect"
 )
 
 func TestRunSimpleJS(t *testing.T) {
@@ -37,6 +37,40 @@ func TestErrorRunningInvalidJs(t *testing.T) {
 	res, err := ctx.Eval(`kajsdfa91j23e`, "junk.js")
 	if err == nil {
 		t.Errorf("Expected error, but got result: %v", res)
+	}
+}
+
+func TestValueString(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	testcases := []struct{ jsCode, toString string }{
+		// primitives:
+		{`"some string"`, `some string`},
+		{`5`, `5`},
+		{`5.123`, `5.123`},
+		{`true`, `true`},
+		{`false`, `false`},
+		{`null`, `null`},
+		{`undefined`, `undefined`},
+		// more complicated objects:
+		{`(function x() { return 1 + 2; })`, `function x() { return 1 + 2; }`},
+		{`([1,2,3])`, `1,2,3`},
+		{`({x: 5})`, `[object Object]`},
+		// basically a primitive, but an interesting case still:
+		{`JSON.stringify({x: 5})`, `{"x":5}`},
+	}
+
+	for i, test := range testcases {
+		res, err := ctx.Eval(test.jsCode, "test.js")
+		if err != nil {
+			t.Fatalf("Case %d: Error evaluating javascript %#q, err: %v",
+				i, test.jsCode, err)
+		}
+		if res.String() != test.toString {
+			t.Errorf("Case %d: Got %#q, expected %#q from running js %#q",
+				i, res.String(), test.toString, test.jsCode)
+		}
 	}
 }
 
@@ -129,7 +163,9 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	t.Parallel()
 
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Create(struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3}})
+	val, err := ctx.Create(struct {
+		Data []byte `v8:"arraybuffer"`
+	}{[]byte{1, 2, 3}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -792,8 +828,12 @@ func TestCreateComplex(t *testing.T) {
 			"list": []float64{1, 2, 3},
 		}},
 		{"*****Struct", false, zzz5},
-		{"bufbuf", false, struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3,4}}},
-		{"emptybuf", false, struct {Data []byte `v8:"arraybuffer"`}{[]byte{}}},
+		{"bufbuf", false, struct {
+			Data []byte `v8:"arraybuffer"`
+		}{[]byte{1, 2, 3, 4}}},
+		{"emptybuf", false, struct {
+			Data []byte `v8:"arraybuffer"`
+		}{[]byte{}}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -847,7 +887,9 @@ func TestCreateComplex(t *testing.T) {
 func TestJsCreateArrayBufferRoundtrip(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Create(struct {Data []byte `v8:"arraybuffer"`}{[]byte{1,2,3,4}})
+	val, err := ctx.Create(struct {
+		Data []byte `v8:"arraybuffer"`
+	}{[]byte{1, 2, 3, 4}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,7 +935,7 @@ func TestJsCreateArrayBufferRoundtrip(t *testing.T) {
 	}
 
 	bytes := data.Bytes()
-	if !reflect.DeepEqual(bytes, []byte{1,2,1,6}) {
+	if !reflect.DeepEqual(bytes, []byte{1, 2, 1, 6}) {
 		t.Errorf("Expected byte array [1,2,1,6] but got %q", bytes)
 	}
 
@@ -903,7 +945,6 @@ func TestJsCreateArrayBufferRoundtrip(t *testing.T) {
 		t.Errorf("Expected error assigning out of range of array buffer")
 	}
 }
-
 
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()

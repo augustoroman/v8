@@ -210,9 +210,20 @@ func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 	return ctx.split(ret)
 }
 
-// Bind creates a V8 function value that calls a Go function when invoked.  This
+// Bind creates a V8 function value that calls a Go function when invoked. This
 // value is created but NOT visible in the Context until it is explicitly passed
 // to the Context (either via a .Set() call or as a callback return value).
+//
+// The name that is provided is the name of the defined javascript function, and
+// generally doesn't affect anything. That is, for a call such as:
+//
+//     val, _ = ctx.Bind("my_func_name", callback)
+//
+// then val is a function object in javascript, so calling val.String() (or
+// calling .toString() on the object within the JS VM) would result in:
+//
+//     function my_func_name() { [native code] }
+//
 func (ctx *Context) Bind(name string, cb Callback) *Value {
 	ctx.nextCallbackId++
 	id := ctx.nextCallbackId

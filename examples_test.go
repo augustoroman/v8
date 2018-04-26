@@ -51,26 +51,76 @@ func Example() {
 	// Stack trace: SyntaxError: Unexpected identifier
 }
 
-func ExampleContext_Create() {
+func ExampleContext_Create_basic() {
 	ctx := v8.NewIsolate().NewContext()
 
 	type Info struct{ Name, Email string }
-	fn := func(in v8.CallbackArgs) (*v8.Value, error) {
-		return in.Context.Create("yay!")
-	}
-	var v8val *v8.Value = ctx.Bind("yay_func", fn)
 
-	val, err := ctx.Create(map[string]interface{}{
+	val, _ := ctx.Create(map[string]interface{}{
 		"num":    3.7,
 		"str":    "simple string",
 		"bool":   true,
 		"struct": Info{"foo", "bar"},
 		"list":   []int{1, 2, 3},
-		"func":   fn,    // Callback functions are automatically bound
-		"value":  v8val, // Can also include any *v8.Value such as explicitly bound callbacks.
 	})
 
-	_, _ = val, err // check errors & use val
+	// val is now a *v8.Value that is associated with ctx but not yet accessible
+	// from the javascript scope.
+
+	_ = ctx.Global().Set("created_value", val)
+
+	res, _ := ctx.Eval(`
+            created_value.struct.Name = 'John';
+            JSON.stringify(created_value.struct)
+        `, `test.js`)
+	fmt.Println(res)
+
+	// output:
+	// {"Name":"John","Email":"bar"}
+}
+
+func ExampleContext_Create_callbacks() {
+	ctx := v8.NewIsolate().NewContext()
+
+	// A typical use of Create is to return values from callbacks:
+	var nextId int
+	getNextIdCallback := func(in v8.CallbackArgs) (*v8.Value, error) {
+		nextId++
+		return ctx.Create(nextId) // Return the created corresponding v8.Value or an error.
+	}
+
+	// Because Create will use reflection to map a Go value to a JS object, it
+	// can also be used to easily bind a complex object into the JS VM.
+	resetIdsCallback := func(in v8.CallbackArgs) (*v8.Value, error) {
+		nextId = 0
+		return ctx.Create(0)
+	}
+	myIdAPI, _ := ctx.Create(map[string]interface{}{
+		"next":  getNextIdCallback,
+		"reset": resetIdsCallback,
+		// Can also include other stuff:
+		"my_api_version": "v1.2",
+	})
+
+	// now let's use those two callbacks and the api value:
+	_ = ctx.Global().Set("ids", myIdAPI)
+	var res *v8.Value
+	res, _ = ctx.Eval(`ids.my_api_version`, `test.js`)
+	fmt.Println(`ids.my_api_version =`, res)
+	res, _ = ctx.Eval(`ids.next()`, `test.js`)
+	fmt.Println(`ids.next() =`, res)
+	res, _ = ctx.Eval(`ids.next()`, `test.js`)
+	fmt.Println(`ids.next() =`, res)
+	res, _ = ctx.Eval(`ids.reset(); ids.next()`, `test.js`)
+	fmt.Println(`ids.reset()`)
+	fmt.Println(`ids.next() =`, res)
+
+	// output:
+	// ids.my_api_version = v1.2
+	// ids.next() = 1
+	// ids.next() = 2
+	// ids.reset()
+	// ids.next() = 1
 }
 
 func ExampleSnapshot() {
