@@ -1148,15 +1148,34 @@ func TestContextFinalizerWithValues(t *testing.T) {
 
 func TestIsolateGetHeapStatistics(t *testing.T) {
 	iso := NewIsolate()
-	h := iso.GetHeapStatistics()
-	if h.TotalHeapSize <= 0 {
-		t.Fatalf("expected heap to be more than zero, got: %d\n", h.TotalHeapSize)
+	initHeap := iso.GetHeapStatistics()
+	if initHeap.TotalHeapSize <= 0 {
+		t.Fatalf("expected heap to be more than zero, got: %d\n", initHeap.TotalHeapSize)
 	}
-}
 
-func TestIsolateLowMemoryNotification(t *testing.T) {
-	iso := NewIsolate()
-	iso.LowMemoryNotification() // checks it exists and doesn't bomb.
+	ctx := iso.NewContext()
+	for i := 0; i < 10000; i++ {
+		ctx.Create(map[string]interface{}{
+			"hello": map[string]interface{}{
+				"world": []string{"foo", "bar"},
+			},
+		})
+	}
+
+	midHeap := iso.GetHeapStatistics()
+	if midHeap.TotalHeapSize <= initHeap.TotalHeapSize {
+		t.Fatalf("expected heap to grow after creating context, got: %d\n", midHeap.TotalHeapSize)
+	}
+
+	beforeNotifyHeap := iso.GetHeapStatistics()
+
+	iso.SendLowMemoryNotification()
+
+	finalHeap := iso.GetHeapStatistics()
+	if finalHeap.TotalHeapSize >= beforeNotifyHeap.TotalHeapSize {
+		t.Fatalf("expected heap to reduce after terminating context, got: %d\n", finalHeap.TotalHeapSize)
+	}
+
 }
 
 func runGcUntilReceivedOrTimedOut(signal <-chan bool, timeout time.Duration) bool {

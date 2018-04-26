@@ -547,9 +547,10 @@ type HeapStatistics struct {
 	HeapSizeLimit           uint64
 	MallocedMemory          uint64
 	PeakMallocedMemory      uint64
-	DoesZapGarbage          uint64
+	DoesZapGarbage          bool
 }
 
+// GetHeapStatistics gets statistics about the heap memory usage.
 func (i *Isolate) GetHeapStatistics() HeapStatistics {
 	hs := C.v8_Isolate_GetHeapStatistics(i.ptr)
 	return HeapStatistics{
@@ -561,10 +562,13 @@ func (i *Isolate) GetHeapStatistics() HeapStatistics {
 		HeapSizeLimit:           uint64(hs.heap_size_limit),
 		MallocedMemory:          uint64(hs.malloced_memory),
 		PeakMallocedMemory:      uint64(hs.peak_malloced_memory),
-		DoesZapGarbage:          uint64(hs.does_zap_garbage),
+		DoesZapGarbage:          hs.does_zap_garbage == 1,
 	}
 }
 
-func (i *Isolate) LowMemoryNotification() {
+// SendLowMemoryNotification sends an optional notification that the
+// system is running low on memory. V8 uses these notifications to
+// attempt to free memory.
+func (i *Isolate) SendLowMemoryNotification() {
 	C.v8_Isolate_LowMemoryNotification(i.ptr)
 }
