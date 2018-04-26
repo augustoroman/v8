@@ -537,3 +537,34 @@ func go_callback_handler(
 
 	return C.ValueErrorPair{Value: res.ptr}
 }
+
+type HeapStatistics struct {
+	TotalHeapSize           uint64
+	TotalHeapSizeExecutable uint64
+	TotalPhysicalSize       uint64
+	TotalAvailableSize      uint64
+	UsedHeapSize            uint64
+	HeapSizeLimit           uint64
+	MallocedMemory          uint64
+	PeakMallocedMemory      uint64
+	DoesZapGarbage          uint64
+}
+
+func (i *Isolate) GetHeapStatistics() HeapStatistics {
+	hs := C.v8_Isolate_GetHeapStatistics(i.ptr)
+	return HeapStatistics{
+		TotalHeapSize:           uint64(hs.total_heap_size),
+		TotalHeapSizeExecutable: uint64(hs.total_heap_size_executable),
+		TotalPhysicalSize:       uint64(hs.total_physical_size),
+		TotalAvailableSize:      uint64(hs.total_available_size),
+		UsedHeapSize:            uint64(hs.used_heap_size),
+		HeapSizeLimit:           uint64(hs.heap_size_limit),
+		MallocedMemory:          uint64(hs.malloced_memory),
+		PeakMallocedMemory:      uint64(hs.peak_malloced_memory),
+		DoesZapGarbage:          uint64(hs.does_zap_garbage),
+	}
+}
+
+func (i *Isolate) LowMemoryNotification() {
+	C.v8_Isolate_LowMemoryNotification(i.ptr)
+}

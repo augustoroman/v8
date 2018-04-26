@@ -1146,6 +1146,19 @@ func TestContextFinalizerWithValues(t *testing.T) {
 	}
 }
 
+func TestIsolateGetHeapStatistics(t *testing.T) {
+	iso := NewIsolate()
+	h := iso.GetHeapStatistics()
+	if h.TotalHeapSize <= 0 {
+		t.Fatalf("expected heap to be more than zero, got: %d\n", h.TotalHeapSize)
+	}
+}
+
+func TestIsolateLowMemoryNotification(t *testing.T) {
+	iso := NewIsolate()
+	iso.LowMemoryNotification() // checks it exists and doesn't bomb.
+}
+
 func runGcUntilReceivedOrTimedOut(signal <-chan bool, timeout time.Duration) bool {
 	expired := time.After(timeout)
 	for {
