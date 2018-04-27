@@ -946,6 +946,23 @@ func TestJsCreateArrayBufferRoundtrip(t *testing.T) {
 	}
 }
 
+func TestTypedArrayBuffers(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	uint8Array, err := ctx.Eval(`
+		new Uint8Array(4).fill(4, 1, 3) // taken from a MDN example
+	`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bytes := uint8Array.Bytes()
+	if !reflect.DeepEqual(bytes, []byte{0, 4, 4, 0}) {
+		t.Errorf("Expected byte array [0,4,4,0] but got %q", bytes)
+	}
+}
+
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
