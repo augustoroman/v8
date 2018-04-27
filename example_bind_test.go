@@ -36,8 +36,6 @@ func ExampleContext_Bind() {
 	// global scope anywhere yet.
 	val := ctx.Bind("my_add_function", AddAllNumbers)
 
-	fmt.Println("val.String() =", val.String())
-
 	// Next we'll set that value into the global context to make it available to
 	// the JS.
 	if err := ctx.Global().Set("add", val); err != nil {
@@ -52,6 +50,5 @@ func ExampleContext_Bind() {
 	fmt.Println(`add(1,2,3,4,5) =`, result)
 
 	// output:
-	// val.String() = function my_add_function() { [native code] }
 	// add(1,2,3,4,5) = 15
 }
