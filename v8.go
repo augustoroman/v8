@@ -349,6 +349,15 @@ func (v *Value) SetIndex(idx int, value *Value) error {
 		C.v8_Value_SetIdx(v.ctx.ptr, v.ptr, C.int(idx), value.ptr))
 }
 
+// GetPromiseResult returns the Promise's result as a Value.
+// If it was rejected, then the Value is a v8 Error,
+// if the promise is pending or if the Value is not a Promise, it
+// returns nil and an error.
+func (v *Value) GetPromiseResult() (*Value, error) {
+	ret := C.v8_Value_PromiseResult(v.ctx.ptr, v.ptr)
+	return v.ctx.split(ret)
+}
+
 // Call this value as a function.  If this value is not a function, this will
 // fail.
 func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {

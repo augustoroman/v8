@@ -85,6 +85,7 @@ extern Error           v8_Value_Set(ContextPtr ctx, PersistentValuePtr value,
 extern ValueErrorPair  v8_Value_GetIdx(ContextPtr ctx, PersistentValuePtr value, int idx);
 extern Error           v8_Value_SetIdx(ContextPtr ctx, PersistentValuePtr value,
                                        int idx, PersistentValuePtr new_value);
+extern ValueErrorPair  v8_Value_PromiseResult(ContextPtr ctx, PersistentValuePtr value);
 extern ValueErrorPair  v8_Value_Call(ContextPtr ctx,
                                      PersistentValuePtr func,
                                      PersistentValuePtr self,
