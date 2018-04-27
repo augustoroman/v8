@@ -963,6 +963,52 @@ func TestTypedArrayBuffers(t *testing.T) {
 	}
 }
 
+func TestGetPromiseResult(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	// Resolved promise
+	prom, err := ctx.Eval(`new Promise((resolve, reject)=>{
+		resolve("hello")
+	})`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := prom.GetPromiseResult()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	str := res.String()
+	if str != "hello" {
+		t.Errorf("Expected promise to resolve to 'hello', but got: %s", str)
+	}
+
+	// Rejected promise
+	prom, err = ctx.Eval(`new Promise((resolve, reject)=>{
+		reject(new Error("hello"))
+	})`, "test.js")
+
+	res, err = prom.GetPromiseResult()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	str = res.String()
+	if str != "Error: hello" {
+		t.Errorf("Expected promise to resolve to 'Error: hello', but got: %s", str)
+	}
+
+	// Pending promise
+	prom, err = ctx.Eval(`new Promise((resolve, reject)=>{})`, "test.js")
+
+	_, err = prom.GetPromiseResult()
+	if err.Error() != "Promise is pending" {
+		t.Errorf("Expected error to be 'Promise is pending', but got: %s", err.Error())
+	}
+}
+
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()

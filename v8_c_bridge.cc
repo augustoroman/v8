@@ -564,4 +564,22 @@ void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
   isolate->LowMemoryNotification();
 }
 
+ValueErrorPair v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+
+  if (!value->IsPromise()) {
+    return (ValueErrorPair){nullptr, DupString("Not a Promise")};
+  }
+
+  v8::Promise* prom = v8::Promise::Cast(*value);
+  
+  if (prom->State() == v8::Promise::PromiseState::kPending) {
+    return (ValueErrorPair){nullptr, DupString("Promise is pending")};
+  }
+
+  return (ValueErrorPair){new Value(isolate, prom->Result()), nullptr};
+}
+
 } // extern "C"
