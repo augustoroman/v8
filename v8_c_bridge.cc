@@ -516,11 +516,16 @@ unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, in
 
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
 
-  if (!value->IsArrayBuffer()) {
+  v8::ArrayBuffer* bufPtr;
+
+  if (value->IsTypedArray()) {
+    bufPtr = *v8::TypedArray::Cast(*value)->Buffer();
+  } else if (value->IsArrayBuffer()) {
+    bufPtr = v8::ArrayBuffer::Cast(*value);
+  } else {
     return NULL;
   }
 
-  v8::ArrayBuffer* bufPtr = v8::ArrayBuffer::Cast(*value);
   if (bufPtr == NULL) {
     return NULL;
   }
