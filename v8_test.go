@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -236,7 +237,7 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 func TestReadAndWriteIndexFromArray(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Create([]int{1, 2, 3})
+	val, err := ctx.Create([]int32{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -960,6 +961,138 @@ func TestTypedArrayBuffers(t *testing.T) {
 	bytes := uint8Array.Bytes()
 	if !reflect.DeepEqual(bytes, []byte{0, 4, 4, 0}) {
 		t.Errorf("Expected byte array [0,4,4,0] but got %q", bytes)
+	}
+}
+
+func TestValueKind(t *testing.T) {
+	ctx := NewIsolate().NewContext()
+
+	toTest := map[string][]int32{
+		`undefined`:                        []int32{KindUndefined, KindNullOrUndefined},
+		`;undefined`:                       []int32{KindUndefined, KindNullOrUndefined},
+		`null`:                             []int32{KindNull, KindNullOrUndefined},
+		`"test"`:                           []int32{KindName, KindString},
+		`Symbol("test")`:                   []int32{KindName, KindSymbol},
+		`(function(){})`:                   []int32{KindObject, KindFunction},
+		`[]`:                               []int32{KindArray, KindObject},
+		`new Object()`:                     []int32{KindObject},
+		`true`:                             []int32{KindTrue, KindBoolean},
+		`false`:                            []int32{KindFalse, KindBoolean},
+		`1`:                                []int32{KindNumber, KindInt32, KindUint32},
+		`new Date()`:                       []int32{KindObject, KindDate},
+		`(function(){return arguments})()`: []int32{KindObject, KindArgumentsObject},
+		`new Boolean`:                      []int32{KindObject, KindBooleanObject},
+		`new Number`:                       []int32{KindObject, KindNumberObject},
+		`new String`:                       []int32{KindObject, KindStringObject},
+		`new Object(Symbol("test"))`:       []int32{KindObject, KindSymbolObject},
+		`/regexp/`:                         []int32{KindObject, KindRegExp},
+		`new Promise((res, rjt)=>{})`:      []int32{KindObject, KindPromise},
+		`new Map()`:                        []int32{KindObject, KindMap},
+		`new Set()`:                        []int32{KindObject, KindSet},
+		`new ArrayBuffer(0)`:               []int32{KindObject, KindArrayBuffer},
+		`new Uint8Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint8Array},
+		`new Uint8ClampedArray(0)`:         []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint8ClampedArray},
+		`new Int8Array(0)`:                 []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt8Array},
+		`new Uint16Array(0)`:               []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint16Array},
+		`new Int16Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt16Array},
+		`new Uint32Array(0)`:               []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint32Array},
+		`new Int32Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt32Array},
+		`new Float32Array(0)`:              []int32{KindObject, KindArrayBufferView, KindTypedArray, KindFloat32Array},
+		`new Float64Array(0)`:              []int32{KindObject, KindArrayBufferView, KindTypedArray, KindFloat64Array},
+		`new DataView(new ArrayBuffer(0))`: []int32{KindObject, KindArrayBufferView, KindDataView},
+		`new SharedArrayBuffer(0)`:         []int32{KindObject, KindSharedArrayBuffer},
+		`new Proxy({}, {})`:                []int32{KindObject, KindProxy},
+		`new WeakMap`:                      []int32{KindObject, KindWeakMap},
+		`new WeakSet`:                      []int32{KindObject, KindWeakSet},
+		`(async function(){})`:             []int32{KindObject, KindAsyncFunction, KindFunction},
+		`(function* (){})`:                 []int32{KindObject, KindGeneratorFunction, KindFunction},
+		`function* gen(){}; gen()`:         []int32{KindObject, KindGeneratorObject},
+		`new Map()[Symbol.iterator]()`:     []int32{KindObject, KindMapIterator},
+		`new Set()[Symbol.iterator]()`:     []int32{KindObject, KindSetIterator},
+		`new EvalError`:                    []int32{KindObject, KindNativeError},
+
+		// TODO!
+		// ``: KindExternal,
+	}
+
+	for script, kinds := range toTest {
+		if k := getKinds(t, ctx, script); !reflect.DeepEqual(k, kinds) {
+			t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", script, kinds, k)
+		}
+	}
+
+	// WASM
+	ctx.Global().Set("getSimpleWasm", ctx.Bind("getSimpleWasm", func(in CallbackArgs) (*Value, error) {
+		wasmBytes, err := ioutil.ReadFile("simple.wasm")
+		if err != nil {
+			return nil, err
+		}
+		return ctx.Create(struct {
+			Data []byte `v8:"arraybuffer"`
+		}{wasmBytes})
+	}))
+
+	wasmScript := `WebAssembly.compile(getSimpleWasm().Data)` // returns a promise
+	p, err := ctx.Eval(wasmScript, "wasm.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := p.GetPromiseResult()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wasmKinds := []int32{KindObject, KindWebAssemblyCompiledModule}
+	if !reflect.DeepEqual(v.kinds, wasmKinds) {
+		fmt.Println(v)
+		t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", wasmScript, wasmKinds, v.kinds)
+	}
+}
+
+func getKinds(t *testing.T, ctx *Context, script string) []int32 {
+	v, err := ctx.Eval(script, "getvalue.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v.Kinds()
+}
+
+func BenchmarkValueKinds(b *testing.B) {
+	ctx := NewIsolate().NewContext()
+	v, err := ctx.Eval(`"string"`, "bench.js")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for n := 0; n < b.N; n++ {
+		v.Kinds()
+	}
+}
+
+func BenchmarkGetValue(b *testing.B) {
+	ctx := NewIsolate().NewContext()
+
+	_, err := ctx.Eval(`var hello = "test"`, "bench.js")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	glob := ctx.Global()
+
+	for n := 0; n < b.N; n++ {
+		if _, err := glob.Get("hello"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkContextCreate(b *testing.B) {
+	ctx := NewIsolate().NewContext()
+
+	for n := 0; n < b.N; n++ {
+		if _, err := ctx.Create(map[string]interface{}{}); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

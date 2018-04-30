@@ -200,6 +200,12 @@ func (ctx *Context) split(ret C.ValueErrorPair) (*Value, error) {
 	return ctx.newValue(ret.Value), ctx.iso.convertErrorMsg(ret.error_msg)
 }
 
+func (ctx *Context) splitTuple(ret C.ValueTuple) (*Value, error) {
+	v := ctx.newValue(ret.Value)
+	v.kinds = kindsToIntSlice(ret.Kinds)
+	return v, ctx.iso.convertErrorMsg(ret.error_msg)
+}
+
 // Eval runs the javascript code in the VM.  The filename parameter is
 // informational only -- it is shown in javascript stack traces.
 func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
@@ -210,7 +216,7 @@ func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 	decRef(ctx)
 	C.free(unsafe.Pointer(js_code_cstr))
 	C.free(unsafe.Pointer(filename_cstr))
-	return ctx.split(ret)
+	return ctx.splitTuple(ret)
 }
 
 // Bind creates a V8 function value that calls a Go function when invoked. This
@@ -265,9 +271,18 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
 		return nil
 	}
 
-	val := &Value{ctx, ptr}
+	val := &Value{ctx: ctx, ptr: ptr}
 	runtime.SetFinalizer(val, (*Value).release)
 	return val
+}
+
+func kindsToIntSlice(src C.ValueKinds) []int32 {
+	if src.ptr == nil {
+		return []int32{}
+	}
+	uptr := unsafe.Pointer(src.ptr)
+	defer C.free(uptr)
+	return (*[1 << 20]int32)(uptr)[:src.len:src.len]
 }
 
 // ParseJson uses V8's JSON.parse to parse the string and return the parsed
@@ -290,8 +305,9 @@ func (ctx *Context) ParseJson(json string) (*Value, error) {
 // associated with a particular Context, but may be passed freely between
 // Contexts within an Isolate.
 type Value struct {
-	ctx *Context
-	ptr C.PersistentValuePtr
+	ctx   *Context
+	ptr   C.PersistentValuePtr
+	kinds []int32
 }
 
 // Bytes returns a byte slice extracted from this value when the value
@@ -324,13 +340,20 @@ func (v *Value) Get(name string) (*Value, error) {
 	name_cstr := C.CString(name)
 	ret := C.v8_Value_Get(v.ctx.ptr, v.ptr, name_cstr)
 	C.free(unsafe.Pointer(name_cstr))
-	return v.ctx.split(ret)
+	return v.ctx.splitTuple(ret)
 }
+
+// func (v *Value) GetWithKind(name string) (*Value, error) {
+// 	name_cstr := C.CString(name)
+// 	ret := C.v8_Value_GetWithKind(v.ctx.ptr, v.ptr, name_cstr)
+// 	C.free(unsafe.Pointer(name_cstr))
+// 	return v.ctx.splitTuple(ret)
+// }
 
 // Get the value at the specified index.  If this value is not an object or an
 // array, this will fail.
 func (v *Value) GetIndex(idx int) (*Value, error) {
-	return v.ctx.split(C.v8_Value_GetIdx(v.ctx.ptr, v.ptr, C.int(idx)))
+	return v.ctx.splitTuple(C.v8_Value_GetIdx(v.ctx.ptr, v.ptr, C.int(idx)))
 }
 
 // Set a field on the object.  If this value is not an object, this
@@ -349,6 +372,10 @@ func (v *Value) SetIndex(idx int, value *Value) error {
 		C.v8_Value_SetIdx(v.ctx.ptr, v.ptr, C.int(idx), value.ptr))
 }
 
+func (v *Value) Kinds() []int32 {
+	return kindsToIntSlice(C.v8_Value_Kinds(v.ctx.ptr, v.ptr))
+}
+
 // Call this value as a function.  If this value is not a function, this will
 // fail.
 func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
@@ -364,7 +391,7 @@ func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
 	addRef(v.ctx)
 	result := C.v8_Value_Call(v.ctx.ptr, v.ptr, thisPtr, C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
-	return v.ctx.split(result)
+	return v.ctx.splitTuple(result)
 }
 
 // New creates a new instance of an object using this value as its constructor.
@@ -378,7 +405,7 @@ func (v *Value) New(args ...*Value) (*Value, error) {
 	addRef(v.ctx)
 	result := C.v8_Value_New(v.ctx.ptr, v.ptr, C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
-	return v.ctx.split(result)
+	return v.ctx.splitTuple(result)
 }
 
 func (v *Value) release() {
@@ -573,4 +600,13 @@ func (i *Isolate) GetHeapStatistics() HeapStatistics {
 // attempt to free memory.
 func (i *Isolate) SendLowMemoryNotification() {
 	C.v8_Isolate_LowMemoryNotification(i.ptr)
+}
+
+// GetPromiseResult returns the Promise's result as a Value.
+// If it was rejected, then the Value is a v8 Error,
+// if the promise is pending or if the Value is not a Promise, it
+// returns nil and an error.
+func (v *Value) GetPromiseResult() (*Value, error) {
+	ret := C.v8_Value_PromiseResult(v.ctx.ptr, v.ptr)
+	return v.ctx.splitTuple(ret)
 }

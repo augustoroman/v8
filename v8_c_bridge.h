@@ -36,6 +36,70 @@ typedef struct {
     Error error_msg;
 } ValueErrorPair;
 
+typedef enum {
+    kUndefined,
+	kNull,
+    kNullOrUndefined,
+    kTrue,
+    kFalse,
+    kName,
+	kString,
+	kSymbol,
+	kFunction,
+	kArray,
+	kObject,
+	kBoolean,
+	kNumber,
+	kExternal,
+	kInt32,
+	kUint32,
+	kDate,
+	kArgumentsObject,
+	kBooleanObject,
+	kNumberObject,
+	kStringObject,
+	kSymbolObject,
+	kNativeError,
+	kRegExp,
+	kAsyncFunction,
+	kGeneratorFunction,
+	kGeneratorObject,
+	kPromise,
+	kMap,
+	kSet,
+	kMapIterator,
+	kSetIterator,
+	kWeakMap,
+	kWeakSet,
+	kArrayBuffer,
+	kArrayBufferView,
+	kTypedArray,
+	kUint8Array,
+	kUint8ClampedArray,
+	kInt8Array,
+	kUint16Array,
+	kInt16Array,
+	kUint32Array,
+	kInt32Array,
+	kFloat32Array,
+	kFloat64Array,
+	kDataView,
+	kSharedArrayBuffer,
+	kProxy,
+	kWebAssemblyCompiledModule,
+} ValueKind;
+
+typedef struct {
+    const int* ptr;
+    size_t len;
+} ValueKinds;
+
+typedef struct {
+    PersistentValuePtr Value;
+    ValueKinds Kinds;
+    Error error_msg;
+} ValueTuple;
+
 typedef struct {
     String Funcname;
     String Filename;
@@ -61,7 +125,7 @@ extern void       v8_Isolate_Release(IsolatePtr isolate);
 extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
 extern void       v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
 
-extern ValueErrorPair     v8_Context_Run(ContextPtr ctx,
+extern ValueTuple     v8_Context_Run(ContextPtr ctx,
                                          const char* code, const char* filename);
 extern PersistentValuePtr v8_Context_RegisterCallback(ContextPtr ctx,
                                                       const char* name, const char* id);
@@ -77,19 +141,22 @@ typedef struct {
     unsigned char* Bytes;
     int Len;
 } ImmediateValue;
+
 extern PersistentValuePtr v8_Context_Create(ContextPtr ctx, ImmediateValue val);
 
-extern ValueErrorPair  v8_Value_Get(ContextPtr ctx, PersistentValuePtr value, const char* field);
+extern ValueTuple  v8_Value_Get(ContextPtr ctx, PersistentValuePtr value, const char* field);
 extern Error           v8_Value_Set(ContextPtr ctx, PersistentValuePtr value,
                                     const char* field, PersistentValuePtr new_value);
-extern ValueErrorPair  v8_Value_GetIdx(ContextPtr ctx, PersistentValuePtr value, int idx);
+extern ValueTuple  v8_Value_GetIdx(ContextPtr ctx, PersistentValuePtr value, int idx);
 extern Error           v8_Value_SetIdx(ContextPtr ctx, PersistentValuePtr value,
                                        int idx, PersistentValuePtr new_value);
-extern ValueErrorPair  v8_Value_Call(ContextPtr ctx,
+extern ValueTuple  v8_Value_PromiseResult(ContextPtr ctx, PersistentValuePtr value);
+extern ValueKinds v8_Value_Kinds(ContextPtr ctx, PersistentValuePtr value);
+extern ValueTuple  v8_Value_Call(ContextPtr ctx,
                                      PersistentValuePtr func,
                                      PersistentValuePtr self,
                                      int argc, PersistentValuePtr* argv);
-extern ValueErrorPair  v8_Value_New(ContextPtr ctx,
+extern ValueTuple  v8_Value_New(ContextPtr ctx,
                                     PersistentValuePtr func,
                                     int argc, PersistentValuePtr* argv);
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
