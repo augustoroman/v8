@@ -202,8 +202,12 @@ func (ctx *Context) split(ret C.ValueErrorPair) (*Value, error) {
 
 func (ctx *Context) splitTuple(ret C.ValueTuple) (*Value, error) {
 	v := ctx.newValue(ret.Value)
+	err := ctx.iso.convertErrorMsg(ret.error_msg)
+	if err != nil {
+		return nil, err
+	}
 	v.kinds = kindsToIntSlice(ret.Kinds)
-	return v, ctx.iso.convertErrorMsg(ret.error_msg)
+	return v, nil
 }
 
 // Eval runs the javascript code in the VM.  The filename parameter is
@@ -278,7 +282,7 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
 
 func kindsToIntSlice(src C.ValueKinds) []int32 {
 	if src.ptr == nil {
-		return []int32{}
+		return make([]int32, 0)
 	}
 	uptr := unsafe.Pointer(src.ptr)
 	defer C.free(uptr)

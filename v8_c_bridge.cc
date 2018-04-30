@@ -393,7 +393,7 @@ ValueTuple v8_Context_Run(ContextPtr ctxptr, const char* code, const char* filen
 
   filename = filename ? filename : "(no file)";
 
-  ValueTuple res = { nullptr, ValueKinds{nullptr, 0}, nullptr };
+  ValueTuple res = { nullptr, nullptr, 0, nullptr };
 
   v8::Local<v8::Script> script = v8::Script::Compile(
       v8::String::NewFromUtf8(isolate, code),
@@ -537,7 +537,7 @@ ValueTuple v8_Value_Get(ContextPtr ctxptr, PersistentValuePtr valueptr, const ch
   Value* value = static_cast<Value*>(valueptr);
   v8::Local<v8::Value> maybeObject = value->Get(isolate);
   if (!maybeObject->IsObject()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString("Not an object")};
+    return (ValueTuple){nullptr, nullptr, 0, DupString("Not an object")};
   }
 
   // We can safely call `ToLocalChecked`, because
@@ -559,7 +559,7 @@ ValueTuple v8_Value_GetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr, int i
   Value* value = static_cast<Value*>(valueptr);
   v8::Local<v8::Value> maybeObject = value->Get(isolate);
   if (!maybeObject->IsObject()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString("Not an object")};
+    return (ValueTuple){nullptr, nullptr, 0, DupString("Not an object")};
   }
 
   v8::Local<v8::Value> obj;
@@ -658,7 +658,7 @@ ValueTuple v8_Value_Call(ContextPtr ctxptr,
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
   if (!func_val->IsFunction()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString("Not a function")};
+    return (ValueTuple){nullptr, nullptr, 0, DupString("Not a function")};
   }
   v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_val);
 
@@ -679,7 +679,7 @@ ValueTuple v8_Value_Call(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString(report_exception(isolate, ctx, try_catch))};
+    return (ValueTuple){nullptr, nullptr, 0, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
   v8::Local<v8::Value> value = result.ToLocalChecked();
@@ -700,7 +700,7 @@ ValueTuple v8_Value_New(ContextPtr ctxptr,
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
   if (!func_val->IsFunction()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString("Not a function")};
+    return (ValueTuple){nullptr, nullptr, 0, DupString("Not a function")};
   }
   v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_val);
 
@@ -714,7 +714,7 @@ ValueTuple v8_Value_New(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString(report_exception(isolate, ctx, try_catch))};
+    return (ValueTuple){nullptr, nullptr, 0, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
   v8::Local<v8::Value> value = result.ToLocalChecked();
@@ -812,7 +812,7 @@ ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr
   v8::Promise* prom = v8::Promise::Cast(*value);
   
   if (prom->State() == v8::Promise::PromiseState::kPending) {
-    return (ValueTuple){nullptr, ValueKinds{}, DupString("Promise is pending")};
+    return (ValueTuple){nullptr, nullptr, 0, DupString("Promise is pending")};
   }
 
   v8::Local<v8::Value> res = prom->Result();
