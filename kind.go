@@ -1,62 +1,103 @@
 package v8
 
-// #include <stdlib.h>
-// #include <string.h>
-// #include "v8_c_bridge.h"
-import (
-	"C"
-)
+type Kind int32
 
 // Value kinds
 const (
-	KindUndefined                 = int32(C.kUndefined)
-	KindNull                      = int32(C.kNull)
-	KindNullOrUndefined           = int32(C.kNullOrUndefined)
-	KindTrue                      = int32(C.kTrue)
-	KindFalse                     = int32(C.kFalse)
-	KindName                      = int32(C.kName)
-	KindString                    = int32(C.kString)
-	KindSymbol                    = int32(C.kSymbol)
-	KindFunction                  = int32(C.kFunction)
-	KindArray                     = int32(C.kArray)
-	KindObject                    = int32(C.kObject)
-	KindBoolean                   = int32(C.kBoolean)
-	KindNumber                    = int32(C.kNumber)
-	KindExternal                  = int32(C.kExternal)
-	KindInt32                     = int32(C.kInt32)
-	KindUint32                    = int32(C.kUint32)
-	KindDate                      = int32(C.kDate)
-	KindArgumentsObject           = int32(C.kArgumentsObject)
-	KindBooleanObject             = int32(C.kBooleanObject)
-	KindNumberObject              = int32(C.kNumberObject)
-	KindStringObject              = int32(C.kStringObject)
-	KindSymbolObject              = int32(C.kSymbolObject)
-	KindNativeError               = int32(C.kNativeError)
-	KindRegExp                    = int32(C.kRegExp)
-	KindAsyncFunction             = int32(C.kAsyncFunction)
-	KindGeneratorFunction         = int32(C.kGeneratorFunction)
-	KindGeneratorObject           = int32(C.kGeneratorObject)
-	KindPromise                   = int32(C.kPromise)
-	KindMap                       = int32(C.kMap)
-	KindSet                       = int32(C.kSet)
-	KindMapIterator               = int32(C.kMapIterator)
-	KindSetIterator               = int32(C.kSetIterator)
-	KindWeakMap                   = int32(C.kWeakMap)
-	KindWeakSet                   = int32(C.kWeakSet)
-	KindArrayBuffer               = int32(C.kArrayBuffer)
-	KindArrayBufferView           = int32(C.kArrayBufferView)
-	KindTypedArray                = int32(C.kTypedArray)
-	KindUint8Array                = int32(C.kUint8Array)
-	KindUint8ClampedArray         = int32(C.kUint8ClampedArray)
-	KindInt8Array                 = int32(C.kInt8Array)
-	KindUint16Array               = int32(C.kUint16Array)
-	KindInt16Array                = int32(C.kInt16Array)
-	KindUint32Array               = int32(C.kUint32Array)
-	KindInt32Array                = int32(C.kInt32Array)
-	KindFloat32Array              = int32(C.kFloat32Array)
-	KindFloat64Array              = int32(C.kFloat64Array)
-	KindDataView                  = int32(C.kDataView)
-	KindSharedArrayBuffer         = int32(C.kSharedArrayBuffer)
-	KindProxy                     = int32(C.kProxy)
-	KindWebAssemblyCompiledModule = int32(C.kWebAssemblyCompiledModule)
+	KindUndefined Kind = iota
+	KindNull
+	KindNullOrUndefined
+	KindTrue
+	KindFalse
+	KindName
+	KindString
+	KindSymbol
+	KindFunction
+	KindArray
+	KindObject
+	KindBoolean
+	KindNumber
+	KindExternal
+	KindInt32
+	KindUint32
+	KindDate
+	KindArgumentsObject
+	KindBooleanObject
+	KindNumberObject
+	KindStringObject
+	KindSymbolObject
+	KindNativeError
+	KindRegExp
+	KindAsyncFunction
+	KindGeneratorFunction
+	KindGeneratorObject
+	KindPromise
+	KindMap
+	KindSet
+	KindMapIterator
+	KindSetIterator
+	KindWeakMap
+	KindWeakSet
+	KindArrayBuffer
+	KindArrayBufferView
+	KindTypedArray
+	KindUint8Array
+	KindUint8ClampedArray
+	KindInt8Array
+	KindUint16Array
+	KindInt16Array
+	KindUint32Array
+	KindInt32Array
+	KindFloat32Array
+	KindFloat64Array
+	KindDataView
+	KindSharedArrayBuffer
+	KindProxy
+	KindWebAssemblyCompiledModule
+)
+
+// Value kind unions, most values have multiple kinds
+var (
+	UnionKindUndefined       = []Kind{KindUndefined, KindNullOrUndefined}
+	UnionKindNull            = []Kind{KindNull, KindNullOrUndefined}
+	UnionKindString          = []Kind{KindName, KindString}
+	UnionKindSymbol          = []Kind{KindName, KindSymbol}
+	UnionKindFunction        = []Kind{KindObject, KindFunction}
+	UnionKindArray           = []Kind{KindObject, KindArray}
+	UnionKindTrue            = []Kind{KindBoolean, KindTrue}
+	UnionKindFalse           = []Kind{KindBoolean, KindFalse}
+	UnionKindDate            = []Kind{KindObject, KindDate}
+	UnionKindArgumentsObject = []Kind{KindObject, KindArgumentsObject}
+
+	UnionKindBooleanObject     = []Kind{KindObject, KindBooleanObject}
+	UnionKindNumberObject      = []Kind{KindObject, KindNumberObject}
+	UnionKindStringObject      = []Kind{KindObject, KindStringObject}
+	UnionKindSymbolObject      = []Kind{KindObject, KindSymbolObject}
+	UnionKindRegExp            = []Kind{KindObject, KindRegExp}
+	UnionKindPromise           = []Kind{KindObject, KindPromise}
+	UnionKindMap               = []Kind{KindObject, KindMap}
+	UnionKindSet               = []Kind{KindObject, KindSet}
+	UnionKindArrayBuffer       = []Kind{KindObject, KindArrayBuffer}
+	UnionKindUint8Array        = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindUint8Array}
+	UnionKindUint8ClampedArray = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindUint8ClampedArray}
+	UnionKindInt8Array         = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindInt8Array}
+	UnionKindUint16Array       = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindUint16Array}
+	UnionKindInt16Array        = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindInt16Array}
+	UnionKindUint32Array       = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindUint32Array}
+	UnionKindInt32Array        = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindInt32Array}
+	UnionKindFloat32Array      = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindFloat32Array}
+	UnionKindFloat64Array      = []Kind{KindObject, KindArrayBufferView, KindTypedArray, KindFloat64Array}
+	UnionKindDataView          = []Kind{KindObject, KindArrayBufferView, KindDataView}
+	UnionKindSharedArrayBuffer = []Kind{KindObject, KindSharedArrayBuffer}
+	UnionKindProxy             = []Kind{KindObject, KindProxy}
+	UnionKindWeakMap           = []Kind{KindObject, KindWeakMap}
+	UnionKindWeakSet           = []Kind{KindObject, KindWeakSet}
+	UnionKindAsyncFunction     = []Kind{KindObject, KindFunction, KindAsyncFunction}
+	UnionKindGeneratorFunction = []Kind{KindObject, KindFunction, KindGeneratorFunction}
+	UnionKindGeneratorObject   = []Kind{KindObject, KindGeneratorObject}
+	UnionKindMapIterator       = []Kind{KindObject, KindMapIterator}
+	UnionKindSetIterator       = []Kind{KindObject, KindSetIterator}
+	UnionKindNativeError       = []Kind{KindObject, KindNativeError}
+
+	UnionKindWebAssemblyCompiledModule = []Kind{KindObject, KindWebAssemblyCompiledModule}
 )

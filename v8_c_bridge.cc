@@ -80,12 +80,6 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   if (value->IsNullOrUndefined()) {
     kinds.push_back(ValueKind::kNullOrUndefined);
   }
-  if (value->IsTrue()) {
-    kinds.push_back(ValueKind::kTrue);
-  }
-  if (value->IsFalse()) {
-    kinds.push_back(ValueKind::kFalse);
-  }
   if (value->IsName()) {
     kinds.push_back(ValueKind::kName);
   }
@@ -97,17 +91,25 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   if (value->IsSymbol()) {
     kinds.push_back(ValueKind::kSymbol);
   }
-  
-  if (value->IsArray()) {
-    kinds.push_back(ValueKind::kArray);
-  }
+
   if (value->IsObject()) {
     kinds.push_back(ValueKind::kObject);
+  }
+
+  if (value->IsArray()) {
+    kinds.push_back(ValueKind::kArray);
   }
   
   if (value->IsBoolean()) {
     kinds.push_back(ValueKind::kBoolean);
   }
+  if (value->IsTrue()) {
+    kinds.push_back(ValueKind::kTrue);
+  }
+  if (value->IsFalse()) {
+    kinds.push_back(ValueKind::kFalse);
+  }
+
   
   if (value->IsNumber()) {
     kinds.push_back(ValueKind::kNumber);
@@ -157,6 +159,10 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
     kinds.push_back(ValueKind::kRegExp);
   }
   
+  if (value->IsFunction()) {
+    kinds.push_back(ValueKind::kFunction);
+  }
+
   if (value->IsAsyncFunction()) {
     kinds.push_back(ValueKind::kAsyncFunction);
   }
@@ -167,10 +173,6 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   
   if (value->IsGeneratorObject()) {
     kinds.push_back(ValueKind::kGeneratorObject);
-  }
-
-  if (value->IsFunction()) {
-    kinds.push_back(ValueKind::kFunction);
   }
   
   if (value->IsPromise()) {

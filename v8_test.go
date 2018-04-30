@@ -237,7 +237,7 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 func TestReadAndWriteIndexFromArray(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Create([]int32{1, 2, 3})
+	val, err := ctx.Create([]Kind{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -967,49 +967,48 @@ func TestTypedArrayBuffers(t *testing.T) {
 func TestValueKind(t *testing.T) {
 	ctx := NewIsolate().NewContext()
 
-	toTest := map[string][]int32{
-		`undefined`:                        []int32{KindUndefined, KindNullOrUndefined},
-		`;undefined`:                       []int32{KindUndefined, KindNullOrUndefined},
-		`null`:                             []int32{KindNull, KindNullOrUndefined},
-		`"test"`:                           []int32{KindName, KindString},
-		`Symbol("test")`:                   []int32{KindName, KindSymbol},
-		`(function(){})`:                   []int32{KindObject, KindFunction},
-		`[]`:                               []int32{KindArray, KindObject},
-		`new Object()`:                     []int32{KindObject},
-		`true`:                             []int32{KindTrue, KindBoolean},
-		`false`:                            []int32{KindFalse, KindBoolean},
-		`1`:                                []int32{KindNumber, KindInt32, KindUint32},
-		`new Date()`:                       []int32{KindObject, KindDate},
-		`(function(){return arguments})()`: []int32{KindObject, KindArgumentsObject},
-		`new Boolean`:                      []int32{KindObject, KindBooleanObject},
-		`new Number`:                       []int32{KindObject, KindNumberObject},
-		`new String`:                       []int32{KindObject, KindStringObject},
-		`new Object(Symbol("test"))`:       []int32{KindObject, KindSymbolObject},
-		`/regexp/`:                         []int32{KindObject, KindRegExp},
-		`new Promise((res, rjt)=>{})`:      []int32{KindObject, KindPromise},
-		`new Map()`:                        []int32{KindObject, KindMap},
-		`new Set()`:                        []int32{KindObject, KindSet},
-		`new ArrayBuffer(0)`:               []int32{KindObject, KindArrayBuffer},
-		`new Uint8Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint8Array},
-		`new Uint8ClampedArray(0)`:         []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint8ClampedArray},
-		`new Int8Array(0)`:                 []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt8Array},
-		`new Uint16Array(0)`:               []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint16Array},
-		`new Int16Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt16Array},
-		`new Uint32Array(0)`:               []int32{KindObject, KindArrayBufferView, KindTypedArray, KindUint32Array},
-		`new Int32Array(0)`:                []int32{KindObject, KindArrayBufferView, KindTypedArray, KindInt32Array},
-		`new Float32Array(0)`:              []int32{KindObject, KindArrayBufferView, KindTypedArray, KindFloat32Array},
-		`new Float64Array(0)`:              []int32{KindObject, KindArrayBufferView, KindTypedArray, KindFloat64Array},
-		`new DataView(new ArrayBuffer(0))`: []int32{KindObject, KindArrayBufferView, KindDataView},
-		`new SharedArrayBuffer(0)`:         []int32{KindObject, KindSharedArrayBuffer},
-		`new Proxy({}, {})`:                []int32{KindObject, KindProxy},
-		`new WeakMap`:                      []int32{KindObject, KindWeakMap},
-		`new WeakSet`:                      []int32{KindObject, KindWeakSet},
-		`(async function(){})`:             []int32{KindObject, KindAsyncFunction, KindFunction},
-		`(function* (){})`:                 []int32{KindObject, KindGeneratorFunction, KindFunction},
-		`function* gen(){}; gen()`:         []int32{KindObject, KindGeneratorObject},
-		`new Map()[Symbol.iterator]()`:     []int32{KindObject, KindMapIterator},
-		`new Set()[Symbol.iterator]()`:     []int32{KindObject, KindSetIterator},
-		`new EvalError`:                    []int32{KindObject, KindNativeError},
+	toTest := map[string][]Kind{
+		`undefined`:                        UnionKindUndefined,
+		`null`:                             UnionKindNull,
+		`"test"`:                           UnionKindString,
+		`Symbol("test")`:                   UnionKindSymbol,
+		`(function(){})`:                   UnionKindFunction,
+		`[]`:                               UnionKindArray,
+		`new Object()`:                     []Kind{KindObject},
+		`true`:                             UnionKindTrue,
+		`false`:                            UnionKindFalse,
+		`1`:                                []Kind{KindNumber, KindInt32, KindUint32},
+		`new Date()`:                       UnionKindDate,
+		`(function(){return arguments})()`: UnionKindArgumentsObject,
+		`new Boolean`:                      UnionKindBooleanObject,
+		`new Number`:                       UnionKindNumberObject,
+		`new String`:                       UnionKindStringObject,
+		`new Object(Symbol("test"))`:       UnionKindSymbolObject,
+		`/regexp/`:                         UnionKindRegExp,
+		`new Promise((res, rjt)=>{})`:      UnionKindPromise,
+		`new Map()`:                        UnionKindMap,
+		`new Set()`:                        UnionKindSet,
+		`new ArrayBuffer(0)`:               UnionKindArrayBuffer,
+		`new Uint8Array(0)`:                UnionKindUint8Array,
+		`new Uint8ClampedArray(0)`:         UnionKindUint8ClampedArray,
+		`new Int8Array(0)`:                 UnionKindInt8Array,
+		`new Uint16Array(0)`:               UnionKindUint16Array,
+		`new Int16Array(0)`:                UnionKindInt16Array,
+		`new Uint32Array(0)`:               UnionKindUint32Array,
+		`new Int32Array(0)`:                UnionKindInt32Array,
+		`new Float32Array(0)`:              UnionKindFloat32Array,
+		`new Float64Array(0)`:              UnionKindFloat64Array,
+		`new DataView(new ArrayBuffer(0))`: UnionKindDataView,
+		`new SharedArrayBuffer(0)`:         UnionKindSharedArrayBuffer,
+		`new Proxy({}, {})`:                UnionKindProxy,
+		`new WeakMap`:                      UnionKindWeakMap,
+		`new WeakSet`:                      UnionKindWeakSet,
+		`(async function(){})`:             UnionKindAsyncFunction,
+		`(function* (){})`:                 UnionKindGeneratorFunction,
+		`function* gen(){}; gen()`:         UnionKindGeneratorObject,
+		`new Map()[Symbol.iterator]()`:     UnionKindMapIterator,
+		`new Set()[Symbol.iterator]()`:     UnionKindSetIterator,
+		`new EvalError`:                    UnionKindNativeError,
 
 		// TODO!
 		// ``: KindExternal,
@@ -1023,7 +1022,7 @@ func TestValueKind(t *testing.T) {
 
 	// WASM
 	ctx.Global().Set("getSimpleWasm", ctx.Bind("getSimpleWasm", func(in CallbackArgs) (*Value, error) {
-		wasmBytes, err := ioutil.ReadFile("simple.wasm")
+		wasmBytes, err := ioutil.ReadFile("testdata/simple.wasm")
 		if err != nil {
 			return nil, err
 		}
@@ -1042,32 +1041,31 @@ func TestValueKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wasmKinds := []int32{KindObject, KindWebAssemblyCompiledModule}
-	if !reflect.DeepEqual(v.kinds, wasmKinds) {
+	if !reflect.DeepEqual(v.kinds, UnionKindWebAssemblyCompiledModule) {
 		fmt.Println(v)
-		t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", wasmScript, wasmKinds, v.kinds)
+		t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", wasmScript, UnionKindWebAssemblyCompiledModule, v.kinds)
 	}
 }
 
-func getKinds(t *testing.T, ctx *Context, script string) []int32 {
+func getKinds(t *testing.T, ctx *Context, script string) []Kind {
 	v, err := ctx.Eval(script, "getvalue.js")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return v.Kinds()
+	return v.kinds
 }
 
-func BenchmarkValueKinds(b *testing.B) {
-	ctx := NewIsolate().NewContext()
-	v, err := ctx.Eval(`"string"`, "bench.js")
-	if err != nil {
-		b.Fatal(err)
-	}
+// func BenchmarkValueKinds(b *testing.B) {
+// 	ctx := NewIsolate().NewContext()
+// 	v, err := ctx.Eval(`"string"`, "bench.js")
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
 
-	for n := 0; n < b.N; n++ {
-		v.Kinds()
-	}
-}
+// 	for n := 0; n < b.N; n++ {
+// 		v.Kinds()
+// 	}
+// }
 
 func BenchmarkGetValue(b *testing.B) {
 	ctx := NewIsolate().NewContext()

@@ -72,8 +72,8 @@ func (ctx *Context) Create(val interface{}) (*Value, error) {
 	return ctx.create(reflect.ValueOf(val))
 }
 
-func (ctx *Context) createVal(v C.ImmediateValue) *Value {
-	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v))
+func (ctx *Context) createVal(v C.ImmediateValue, kinds []Kind) *Value {
+	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v), kinds)
 }
 
 func getJsName(fieldName, jsonTag string) string {
@@ -98,22 +98,26 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 
 	switch val.Kind() {
 	case reflect.Invalid:
-		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, UnionKindUndefined), nil
 	case reflect.Bool:
 		bval := C.int(0)
+		var kinds []Kind
 		if val.Bool() {
+			kinds = UnionKindTrue
 			bval = 1
+		} else {
+			kinds = UnionKindFalse
 		}
-		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, BoolVal: bval}), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, BoolVal: bval}, kinds), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
 		num := C.double(val.Convert(float64Type).Float())
-		return ctx.createVal(C.ImmediateValue{Type: C.tNUMBER, Num: num}), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tNUMBER, Num: num}, []Kind{KindNumber}), nil
 	case reflect.String:
 		str := C.String{ptr: C.CString(val.String()), len: C.int(len(val.String()))}
 		defer C.free(unsafe.Pointer(str.ptr))
-		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Str: str}), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Str: str}, UnionKindString), nil
 	case reflect.UnsafePointer, reflect.Uintptr:
 		return nil, fmt.Errorf("Uintptr not supported: %#v", val.Interface())
 	case reflect.Complex64, reflect.Complex128:
@@ -132,7 +136,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		if val.Type().Key() != stringType {
 			return nil, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
 		}
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject})
 		keys := val.MapKeys()
 		sort.Sort(stringKeys(keys))
 		for _, key := range keys {
@@ -147,7 +151,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		}
 		return ob, nil
 	case reflect.Struct:
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT})
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject})
 		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		arrayBuffer := false
@@ -164,10 +168,10 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 			if bytes != nil && len(bytes) > 0 {
 				ptr = (*C.uchar)(unsafe.Pointer(&val.Bytes()[0]))
 			}
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())})
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())}, UnionKindArrayBuffer)
 			return ob, nil
 		} else {
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())})
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, UnionKindArray)
 			for i := 0; i < val.Len(); i++ {
 				v, err := ctx.create(val.Index(i))
 				if err != nil {
