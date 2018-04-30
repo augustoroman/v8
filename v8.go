@@ -280,7 +280,7 @@ func parseKinds(src C.ValueKinds) []Kind {
 	}
 	uptr := unsafe.Pointer(src.ptr)
 	defer C.free(uptr)
-	return (*[1 << 20]Kind)(uptr)[:src.len:src.len]
+	return (*[1 << 30]Kind)(uptr)[:src.len:src.len]
 }
 
 // ParseJson uses V8's JSON.parse to parse the string and return the parsed
