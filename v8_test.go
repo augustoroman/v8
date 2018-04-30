@@ -237,7 +237,7 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 func TestReadAndWriteIndexFromArray(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Create([]Kind{1, 2, 3})
+	val, err := ctx.Create([]int{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)
 	}
