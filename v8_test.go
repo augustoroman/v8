@@ -966,13 +966,16 @@ func TestTypedArrayBuffers(t *testing.T) {
 func TestValueKind(t *testing.T) {
 	ctx := NewIsolate().NewContext()
 
-	// WASM: This script uses the simple.wasm from the MDN website:
-	//   https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
+	// WASM: This wasm code corresponds to WAT:
+	//   (module
+	//      (func $add (param $x i32) (param $y i32) (result i32)
+	//          (i32.add (get_local $x) (get_local $y)))
+	//      (export "add" $add))
+	// That exports an "add(a,b int32) int32" function.
 	const wasmScript = `new WebAssembly.Module(
-		new Uint8Array([0,97,115,109,1,0,0,0,1,133,128,128,128,0,1,96,0,1,
-			127,3,130,128,128,128,0,1,0,4,132,128,128,128,0,1,112,0,0,5,131,128,128,128,0,1,0,1,6,
-			129,128,128,128,0,0,7,145,128,128,128,0,2,6,109,101,109,111,114,121,2,0,4,109,97,105,
-			110,0,0,10,138,128,128,128,0,1,132,128,128,128,0,0,65,42,11]))`
+		new Uint8Array([0,97,115,109,1,0,0,0,1,135,128,128,128,0,1,96,2,127,127,1,127,3,130,128,128,
+			128,0,1,0,6,129,128,128,128,0,0,7,135,128,128,128,0,1,3,97,100,100,0,0,10,141,128,128,128,
+			0,1,135,128,128,128,0,0,32,0,32,1,106,11]))`
 
 	toTest := map[string][]Kind{
 		`undefined`:                        []Kind{KindUndefined},
