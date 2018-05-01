@@ -1,6 +1,6 @@
 package v8
 
-type Kind int32
+type Kind uint8
 
 // Value kinds
 const (

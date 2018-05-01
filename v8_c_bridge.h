@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdint.h>
 
 #ifndef V8_C_BRIDGE_H
 #define V8_C_BRIDGE_H
@@ -36,6 +37,8 @@ typedef struct {
     Error error_msg;
 } ValueErrorPair;
 
+// NOTE! These values must exactly match the values in kinds.go. Any mismatch
+// will cause kinds to be misreported.
 typedef enum {
     kUndefined,
     kNull,
@@ -89,7 +92,7 @@ typedef enum {
 } ValueKind;
 
 typedef struct {
-    const int* ptr;
+    const uint8_t* ptr;
     size_t len;
 } ValueKinds;
 

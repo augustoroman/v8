@@ -67,7 +67,7 @@ String DupString(const std::string& src) {
 }
 
 ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
-  std::vector<int> kinds;
+  std::vector<uint8_t> kinds;
 
   if (value->IsUndefined())         kinds.push_back(ValueKind::kUndefined        );
   if (value->IsNull())              kinds.push_back(ValueKind::kNull             );
@@ -119,8 +119,8 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   if (value->IsProxy())             kinds.push_back(ValueKind::kProxy            );
   if (value->IsWebAssemblyCompiledModule()) kinds.push_back(ValueKind::kWebAssemblyCompiledModule);
 
-  int* data = static_cast<int*>(malloc(sizeof(int) * kinds.size()));
-  memcpy(data, kinds.data(), sizeof(int) * kinds.size());
+  uint8_t* data = static_cast<uint8_t*>(calloc(kinds.size(), sizeof(uint8_t)));
+  memcpy(data, kinds.data(), kinds.size() * sizeof(uint8_t));
   return (ValueKinds){data, kinds.size()};
 }
 
