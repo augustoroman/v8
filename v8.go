@@ -276,11 +276,16 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds []Kind) *Value {
 
 func parseKinds(src C.ValueKinds) []Kind {
 	if src.ptr == nil {
-		return make([]Kind, 0)
+		return nil
 	}
-	uptr := unsafe.Pointer(src.ptr)
-	defer C.free(uptr)
-	return (*[1 << 30]Kind)(uptr)[:src.len:src.len]
+
+	kindsCPtr := unsafe.Pointer(src.ptr)
+	defer C.free(kindsCPtr)
+	cKinds := (*[1 << 30]Kind)(kindsCPtr)[:src.len:src.len]
+
+	kinds := make([]Kind, src.len)
+	copy(kinds, cKinds)
+	return kinds
 }
 
 // ParseJson uses V8's JSON.parse to parse the string and return the parsed
