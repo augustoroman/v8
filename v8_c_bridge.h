@@ -39,7 +39,6 @@ typedef struct {
 typedef enum {
     kUndefined,
     kNull,
-    kNullOrUndefined,
     kTrue,
     kFalse,
     kName,

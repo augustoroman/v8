@@ -71,7 +71,6 @@ ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
 
   if (value->IsUndefined())         kinds.push_back(ValueKind::kUndefined        );
   if (value->IsNull())              kinds.push_back(ValueKind::kNull             );
-  if (value->IsNullOrUndefined())   kinds.push_back(ValueKind::kNullOrUndefined  );
   if (value->IsName())              kinds.push_back(ValueKind::kName             );
   if (value->IsString())            kinds.push_back(ValueKind::kString           );
   if (value->IsSymbol())            kinds.push_back(ValueKind::kSymbol           );

@@ -6,7 +6,6 @@ type Kind int32
 const (
 	KindUndefined Kind = iota
 	KindNull
-	KindNullOrUndefined
 	KindTrue
 	KindFalse
 	KindName
@@ -58,8 +57,6 @@ const (
 
 // Value kind unions, most values have multiple kinds
 var (
-	unionKindUndefined       = []Kind{KindUndefined, KindNullOrUndefined}
-	unionKindNull            = []Kind{KindNull, KindNullOrUndefined}
 	unionKindString          = []Kind{KindName, KindString}
 	unionKindSymbol          = []Kind{KindName, KindSymbol}
 	unionKindFunction        = []Kind{KindObject, KindFunction}

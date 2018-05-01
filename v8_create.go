@@ -98,7 +98,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 
 	switch val.Kind() {
 	case reflect.Invalid:
-		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, unionKindUndefined), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, []Kind{KindUndefined}), nil
 	case reflect.Bool:
 		bval := C.int(0)
 		var kinds []Kind

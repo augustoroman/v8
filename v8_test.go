@@ -968,8 +968,8 @@ func TestValueKind(t *testing.T) {
 	ctx := NewIsolate().NewContext()
 
 	toTest := map[string][]Kind{
-		`undefined`:                        unionKindUndefined,
-		`null`:                             unionKindNull,
+		`undefined`:                        []Kind{KindUndefined},
+		`null`:                             []Kind{KindNull},
 		`"test"`:                           unionKindString,
 		`Symbol("test")`:                   unionKindSymbol,
 		`(function(){})`:                   unionKindFunction,
@@ -1015,8 +1015,12 @@ func TestValueKind(t *testing.T) {
 	}
 
 	for script, kinds := range toTest {
-		if k := getKinds(t, ctx, script); !reflect.DeepEqual(k, kinds) {
-			t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", script, kinds, k)
+		v, err := ctx.Eval(script, "getvalue.js")
+		if err != nil {
+			continue
+		}
+		if !reflect.DeepEqual(v.kinds, kinds) {
+			t.Errorf("Expected %#q's return value to have kinds: %#v, got: %#v", script, kinds, v.kinds)
 		}
 	}
 
@@ -1045,14 +1049,6 @@ func TestValueKind(t *testing.T) {
 		fmt.Println(v)
 		t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", wasmScript, unionKindWebAssemblyCompiledModule, v.kinds)
 	}
-}
-
-func getKinds(t *testing.T, ctx *Context, script string) []Kind {
-	v, err := ctx.Eval(script, "getvalue.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v.kinds
 }
 
 // func BenchmarkValueKinds(b *testing.B) {
