@@ -1031,8 +1031,17 @@ func TestValueKind(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(v.kinds, kinds) {
-			t.Errorf("Expected %#q's return value to have kinds: %#v, got: %#v", script, kinds, v.kinds)
+			t.Errorf("Expected %#q's return value to have kinds: %v, got: %v", script, kinds, v.kinds)
 		}
+	}
+}
+
+// Make sure that we don't accidentally have an stack overflow when stringifying
+// an invalid kind.
+func TestInvalidKindString(t *testing.T) {
+	var k Kind = 250 // Not a valid value
+	if k.String() != "InvalidKind:250" {
+		t.Errorf("Failed to stringify invalid kind: %q", k.String())
 	}
 }
 

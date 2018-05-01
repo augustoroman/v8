@@ -1,5 +1,9 @@
 package v8
 
+import (
+	"fmt"
+)
+
 type Kind uint8
 
 // Value kinds
@@ -54,6 +58,110 @@ const (
 	KindProxy
 	KindWebAssemblyCompiledModule
 )
+
+func (k Kind) String() string {
+	switch k {
+	case KindUndefined:
+		return "Undefined"
+	case KindNull:
+		return "Null"
+	case KindTrue:
+		return "True"
+	case KindFalse:
+		return "False"
+	case KindName:
+		return "Name"
+	case KindString:
+		return "String"
+	case KindSymbol:
+		return "Symbol"
+	case KindFunction:
+		return "Function"
+	case KindArray:
+		return "Array"
+	case KindObject:
+		return "Object"
+	case KindBoolean:
+		return "Boolean"
+	case KindNumber:
+		return "Number"
+	case KindExternal:
+		return "External"
+	case KindInt32:
+		return "Int32"
+	case KindUint32:
+		return "Uint32"
+	case KindDate:
+		return "Date"
+	case KindArgumentsObject:
+		return "ArgumentsObject"
+	case KindBooleanObject:
+		return "BooleanObject"
+	case KindNumberObject:
+		return "NumberObject"
+	case KindStringObject:
+		return "StringObject"
+	case KindSymbolObject:
+		return "SymbolObject"
+	case KindNativeError:
+		return "NativeError"
+	case KindRegExp:
+		return "RegExp"
+	case KindAsyncFunction:
+		return "AsyncFunction"
+	case KindGeneratorFunction:
+		return "GeneratorFunction"
+	case KindGeneratorObject:
+		return "GeneratorObject"
+	case KindPromise:
+		return "Promise"
+	case KindMap:
+		return "Map"
+	case KindSet:
+		return "Set"
+	case KindMapIterator:
+		return "MapIterator"
+	case KindSetIterator:
+		return "SetIterator"
+	case KindWeakMap:
+		return "WeakMap"
+	case KindWeakSet:
+		return "WeakSet"
+	case KindArrayBuffer:
+		return "ArrayBuffer"
+	case KindArrayBufferView:
+		return "ArrayBufferView"
+	case KindTypedArray:
+		return "TypedArray"
+	case KindUint8Array:
+		return "Uint8Array"
+	case KindUint8ClampedArray:
+		return "Uint8ClampedArray"
+	case KindInt8Array:
+		return "Int8Array"
+	case KindUint16Array:
+		return "Uint16Array"
+	case KindInt16Array:
+		return "Int16Array"
+	case KindUint32Array:
+		return "Uint32Array"
+	case KindInt32Array:
+		return "Int32Array"
+	case KindFloat32Array:
+		return "Float32Array"
+	case KindFloat64Array:
+		return "Float64Array"
+	case KindDataView:
+		return "DataView"
+	case KindSharedArrayBuffer:
+		return "SharedArrayBuffer"
+	case KindProxy:
+		return "Proxy"
+	case KindWebAssemblyCompiledModule:
+		return "WebAssemblyCompiledModule"
+	}
+	return fmt.Sprintf("InvalidKind:%d", int(k))
+}
 
 // Value kind unions, most values have multiple kinds
 var (
