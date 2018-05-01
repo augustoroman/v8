@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -967,6 +966,14 @@ func TestTypedArrayBuffers(t *testing.T) {
 func TestValueKind(t *testing.T) {
 	ctx := NewIsolate().NewContext()
 
+	// WASM: This script uses the simple.wasm from the MDN website:
+	//   https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
+	const wasmScript = `new WebAssembly.Module(
+		new Uint8Array([0,97,115,109,1,0,0,0,1,133,128,128,128,0,1,96,0,1,
+			127,3,130,128,128,128,0,1,0,4,132,128,128,128,0,1,112,0,0,5,131,128,128,128,0,1,0,1,6,
+			129,128,128,128,0,0,7,145,128,128,128,0,2,6,109,101,109,111,114,121,2,0,4,109,97,105,
+			110,0,0,10,138,128,128,128,0,1,132,128,128,128,0,0,65,42,11]))`
+
 	toTest := map[string][]Kind{
 		`undefined`:                        []Kind{KindUndefined},
 		`null`:                             []Kind{KindNull},
@@ -1009,6 +1016,7 @@ func TestValueKind(t *testing.T) {
 		`new Map()[Symbol.iterator]()`:     unionKindMapIterator,
 		`new Set()[Symbol.iterator]()`:     unionKindSetIterator,
 		`new EvalError`:                    unionKindNativeError,
+		wasmScript:                         unionKindWebAssemblyCompiledModule,
 
 		// TODO!
 		// ``: KindExternal,
@@ -1023,45 +1031,7 @@ func TestValueKind(t *testing.T) {
 			t.Errorf("Expected %#q's return value to have kinds: %#v, got: %#v", script, kinds, v.kinds)
 		}
 	}
-
-	// WASM
-	ctx.Global().Set("getSimpleWasm", ctx.Bind("getSimpleWasm", func(in CallbackArgs) (*Value, error) {
-		wasmBytes, err := ioutil.ReadFile("testdata/simple.wasm")
-		if err != nil {
-			return nil, err
-		}
-		return ctx.Create(struct {
-			Data []byte `v8:"arraybuffer"`
-		}{wasmBytes})
-	}))
-
-	wasmScript := `WebAssembly.compile(getSimpleWasm().Data)` // returns a promise
-	p, err := ctx.Eval(wasmScript, "wasm.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	v, err := p.GetPromiseResult()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(v.kinds, unionKindWebAssemblyCompiledModule) {
-		fmt.Println(v)
-		t.Errorf("Expected `%s`'s return value to have kinds: %+v, got: %+v", wasmScript, unionKindWebAssemblyCompiledModule, v.kinds)
-	}
 }
-
-// func BenchmarkValueKinds(b *testing.B) {
-// 	ctx := NewIsolate().NewContext()
-// 	v, err := ctx.Eval(`"string"`, "bench.js")
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-
-// 	for n := 0; n < b.N; n++ {
-// 		v.Kinds()
-// 	}
-// }
 
 func BenchmarkGetValue(b *testing.B) {
 	ctx := NewIsolate().NewContext()
