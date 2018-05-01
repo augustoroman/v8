@@ -28,6 +28,9 @@ func TestRunSimpleJS(t *testing.T) {
 	if str := res.String(); str != "30" {
 		t.Errorf("Expected 30, got %q", str)
 	}
+	if !res.IsKind(KindNumber) {
+		t.Errorf("Expected res to be a number, but it's: %v", res.kinds)
+	}
 }
 
 func TestErrorRunningInvalidJs(t *testing.T) {
@@ -92,6 +95,9 @@ func TestJsReturnUndefined(t *testing.T) {
 	res, err := ctx.Eval(``, "undefined.js")
 	if err != nil {
 		t.Fatalf("Error evaluating javascript, err: %v", err)
+	}
+	if !res.IsKind(KindUndefined) {
+		t.Errorf("Expected undefined value, got kinds %v", res.kinds)
 	}
 	if str := res.String(); str != "undefined" {
 		t.Errorf("Expected 'undefined', got %q", str)
