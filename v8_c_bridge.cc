@@ -1,5 +1,4 @@
 #include "v8_c_bridge.h"
-// #include "helper.h"
 
 #include "libplatform/libplatform.h"
 #include "v8.h"
@@ -362,25 +361,6 @@ PersistentValuePtr v8_Context_Create(ContextPtr ctxptr, ImmediateValue val) {
   }
   return nullptr;
 }
-
-// ValueErrorPair v8_Value_Get(ContextPtr ctxptr, PersistentValuePtr valueptr, const char* field) {
-//   VALUE_SCOPE(ctxptr);
-
-//   Value* value = static_cast<Value*>(valueptr);
-//   v8::Local<v8::Value> maybeObject = value->Get(isolate);
-//   if (!maybeObject->IsObject()) {
-//     return (ValueErrorPair){nullptr, DupString("Not an object")};
-//   }
-
-//   // We can safely call `ToLocalChecked`, because
-//   // we've just created the local object above.
-//   v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
-
-//   ValueErrorPair res = { nullptr, nullptr };
-//   res.Value = new Value(isolate,
-//     object->Get(ctx, v8::String::NewFromUtf8(isolate, field)).ToLocalChecked());
-//   return res;
-// }
 
 ValueTuple v8_Value_Get(ContextPtr ctxptr, PersistentValuePtr valueptr, const char* field) {
   VALUE_SCOPE(ctxptr);
