@@ -239,7 +239,7 @@ func (ctx *Context) Bind(name string, cb Callback) *Value {
 	defer C.free(unsafe.Pointer(cbIdStr))
 	nameStr := C.CString(name)
 	defer C.free(unsafe.Pointer(nameStr))
-	return ctx.newValue(C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr), UnionKindFunction)
+	return ctx.newValue(C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr), unionKindFunction)
 }
 
 // Global returns the JS global object for this context, with properties like

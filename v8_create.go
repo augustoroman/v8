@@ -98,15 +98,15 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 
 	switch val.Kind() {
 	case reflect.Invalid:
-		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, UnionKindUndefined), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, unionKindUndefined), nil
 	case reflect.Bool:
 		bval := C.int(0)
 		var kinds []Kind
 		if val.Bool() {
-			kinds = UnionKindTrue
+			kinds = unionKindTrue
 			bval = 1
 		} else {
-			kinds = UnionKindFalse
+			kinds = unionKindFalse
 		}
 		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, BoolVal: bval}, kinds), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -117,7 +117,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 	case reflect.String:
 		str := C.String{ptr: C.CString(val.String()), len: C.int(len(val.String()))}
 		defer C.free(unsafe.Pointer(str.ptr))
-		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Str: str}, UnionKindString), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Str: str}, unionKindString), nil
 	case reflect.UnsafePointer, reflect.Uintptr:
 		return nil, fmt.Errorf("Uintptr not supported: %#v", val.Interface())
 	case reflect.Complex64, reflect.Complex128:
@@ -168,10 +168,10 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 			if bytes != nil && len(bytes) > 0 {
 				ptr = (*C.uchar)(unsafe.Pointer(&val.Bytes()[0]))
 			}
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())}, UnionKindArrayBuffer)
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())}, unionKindArrayBuffer)
 			return ob, nil
 		} else {
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, UnionKindArray)
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, unionKindArray)
 			for i := 0; i < val.Len(); i++ {
 				v, err := ctx.create(val.Index(i))
 				if err != nil {
