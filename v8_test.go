@@ -687,7 +687,7 @@ func TestJsonExport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	some_result, err := ctx.Eval("(() => ({a:3,b:'xyz',c:true}))()", "test.js")
+	some_result, err := ctx.Eval("({a:3,b:'xyz',c:true})", "test.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1127,12 +1127,12 @@ func TestParseJson(t *testing.T) {
 func TestJsonMarshal(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
-	val, err := ctx.Eval(`(()=>({
+	val, err := ctx.Eval(`({
 		blah: 3,
 		muck: true,
 		label: "lala",
 		missing: () => ( "functions get dropped" )
-	}))()`, "test.js")
+	})`, "test.js")
 	if err != nil {
 		t.Fatal(err)
 	}
