@@ -69,206 +69,56 @@ String DupString(const std::string& src) {
 ValueKinds v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   std::vector<int> kinds;
 
-  if (value->IsUndefined()) {
-    kinds.push_back(ValueKind::kUndefined);
-  }
- 
-  if (value->IsNull()) {
-    kinds.push_back(ValueKind::kNull);
-  }
-
-  if (value->IsNullOrUndefined()) {
-    kinds.push_back(ValueKind::kNullOrUndefined);
-  }
-  if (value->IsName()) {
-    kinds.push_back(ValueKind::kName);
-  }
-  
-  if (value->IsString()){
-    kinds.push_back(ValueKind::kString);
-  }
-  
-  if (value->IsSymbol()) {
-    kinds.push_back(ValueKind::kSymbol);
-  }
-
-  if (value->IsObject()) {
-    kinds.push_back(ValueKind::kObject);
-  }
-
-  if (value->IsArray()) {
-    kinds.push_back(ValueKind::kArray);
-  }
-  
-  if (value->IsBoolean()) {
-    kinds.push_back(ValueKind::kBoolean);
-  }
-  if (value->IsTrue()) {
-    kinds.push_back(ValueKind::kTrue);
-  }
-  if (value->IsFalse()) {
-    kinds.push_back(ValueKind::kFalse);
-  }
-
-  
-  if (value->IsNumber()) {
-    kinds.push_back(ValueKind::kNumber);
-  }
-  
-  if (value->IsExternal()) {
-    kinds.push_back(ValueKind::kExternal);
-  }
-  
-  if (value->IsInt32()) {
-    kinds.push_back(ValueKind::kInt32);
-  }
-  
-  if (value->IsUint32()) {
-    kinds.push_back(ValueKind::kUint32);
-  }
-  
-  if (value->IsDate()) {
-    kinds.push_back(ValueKind::kDate);
-  }
-  
-  if (value->IsArgumentsObject()) {
-    kinds.push_back(ValueKind::kArgumentsObject);
-  }
-  
-  if (value->IsBooleanObject()) {
-    kinds.push_back(ValueKind::kBooleanObject);
-  }
-  
-  if (value->IsNumberObject()) {
-    kinds.push_back(ValueKind::kNumberObject);
-  }
-  
-  if (value->IsStringObject()) {
-    kinds.push_back(ValueKind::kStringObject);
-  }
-  
-  if (value->IsSymbolObject()) {
-    kinds.push_back(ValueKind::kSymbolObject);
-  }
-  
-  if (value->IsNativeError()) {
-    kinds.push_back(ValueKind::kNativeError);
-  }
-  
-  if (value->IsRegExp()) {
-    kinds.push_back(ValueKind::kRegExp);
-  }
-  
-  if (value->IsFunction()) {
-    kinds.push_back(ValueKind::kFunction);
-  }
-
-  if (value->IsAsyncFunction()) {
-    kinds.push_back(ValueKind::kAsyncFunction);
-  }
-  
-  if (value->IsGeneratorFunction()) {
-    kinds.push_back(ValueKind::kGeneratorFunction);
-  }
-  
-  if (value->IsGeneratorObject()) {
-    kinds.push_back(ValueKind::kGeneratorObject);
-  }
-  
-  if (value->IsPromise()) {
-    kinds.push_back(ValueKind::kPromise);
-  }
-  
-  if (value->IsMap()) {
-    kinds.push_back(ValueKind::kMap);
-  }
-  
-  if (value->IsSet()) {
-    kinds.push_back(ValueKind::kSet);
-  }
-  
-  if (value->IsMapIterator()) {
-    kinds.push_back(ValueKind::kMapIterator);
-  }
-  
-  if (value->IsSetIterator()) {
-    kinds.push_back(ValueKind::kSetIterator);
-  }
-  
-  if (value->IsWeakMap()) {
-    kinds.push_back(ValueKind::kWeakMap);
-  }
-  
-  if (value->IsWeakSet()) {
-    kinds.push_back(ValueKind::kWeakSet);
-  }
-  
-  if (value->IsArrayBuffer()) {
-    kinds.push_back(ValueKind::kArrayBuffer);
-  }
-
-  if (value->IsArrayBufferView()) {
-    kinds.push_back(ValueKind::kArrayBufferView);
-  }
-  
-  if (value->IsTypedArray()) {
-    kinds.push_back(ValueKind::kTypedArray);
-  }
-  
-  if (value->IsUint8Array()) {
-    kinds.push_back(ValueKind::kUint8Array);
-  }
-  
-  if (value->IsUint8ClampedArray()) {
-    kinds.push_back(ValueKind::kUint8ClampedArray);
-  }
-  
-  if (value->IsInt8Array()) {
-    kinds.push_back(ValueKind::kInt8Array);
-  }
-  
-  if (value->IsUint16Array()) {
-    kinds.push_back(ValueKind::kUint16Array);
-  }
-  
-  if (value->IsInt16Array()) {
-    kinds.push_back(ValueKind::kInt16Array);
-  }
-  
-  if (value->IsUint32Array()) {
-    kinds.push_back(ValueKind::kUint32Array);
-  }
-  
-  if (value->IsInt32Array()) {
-    kinds.push_back(ValueKind::kInt32Array);
-  }
-  
-  if (value->IsFloat32Array()) {
-    kinds.push_back(ValueKind::kFloat32Array);
-  }
-  
-  if (value->IsFloat64Array()) {
-    kinds.push_back(ValueKind::kFloat64Array);
-  }
-  
-  if (value->IsDataView()) {
-    kinds.push_back(ValueKind::kDataView);
-  }
-  
-  if (value->IsSharedArrayBuffer()) {
-    kinds.push_back(ValueKind::kSharedArrayBuffer);
-  }
-  
-  if (value->IsProxy()) {
-    kinds.push_back(ValueKind::kProxy);
-  }
-  
-  if (value->IsWebAssemblyCompiledModule()) {
-    kinds.push_back(ValueKind::kWebAssemblyCompiledModule);
-  }
-
-  // for (std::vector<int>::iterator it = kinds.begin() ; it != kinds.end(); ++it)
-  //   fprintf(stderr, "i: %d\n", *it);
+  if (value->IsUndefined())         kinds.push_back(ValueKind::kUndefined        );
+  if (value->IsNull())              kinds.push_back(ValueKind::kNull             );
+  if (value->IsNullOrUndefined())   kinds.push_back(ValueKind::kNullOrUndefined  );
+  if (value->IsName())              kinds.push_back(ValueKind::kName             );
+  if (value->IsString())            kinds.push_back(ValueKind::kString           );
+  if (value->IsSymbol())            kinds.push_back(ValueKind::kSymbol           );
+  if (value->IsObject())            kinds.push_back(ValueKind::kObject           );
+  if (value->IsArray())             kinds.push_back(ValueKind::kArray            );
+  if (value->IsBoolean())           kinds.push_back(ValueKind::kBoolean          );
+  if (value->IsTrue())              kinds.push_back(ValueKind::kTrue             );
+  if (value->IsFalse())             kinds.push_back(ValueKind::kFalse            );
+  if (value->IsNumber())            kinds.push_back(ValueKind::kNumber           );
+  if (value->IsExternal())          kinds.push_back(ValueKind::kExternal         );
+  if (value->IsInt32())             kinds.push_back(ValueKind::kInt32            );
+  if (value->IsUint32())            kinds.push_back(ValueKind::kUint32           );
+  if (value->IsDate())              kinds.push_back(ValueKind::kDate             );
+  if (value->IsArgumentsObject())   kinds.push_back(ValueKind::kArgumentsObject  );
+  if (value->IsBooleanObject())     kinds.push_back(ValueKind::kBooleanObject    );
+  if (value->IsNumberObject())      kinds.push_back(ValueKind::kNumberObject     );
+  if (value->IsStringObject())      kinds.push_back(ValueKind::kStringObject     );
+  if (value->IsSymbolObject())      kinds.push_back(ValueKind::kSymbolObject     );
+  if (value->IsNativeError())       kinds.push_back(ValueKind::kNativeError      );
+  if (value->IsRegExp())            kinds.push_back(ValueKind::kRegExp           );
+  if (value->IsFunction())          kinds.push_back(ValueKind::kFunction         );
+  if (value->IsAsyncFunction())     kinds.push_back(ValueKind::kAsyncFunction    );
+  if (value->IsGeneratorFunction()) kinds.push_back(ValueKind::kGeneratorFunction);
+  if (value->IsGeneratorObject())   kinds.push_back(ValueKind::kGeneratorObject  );
+  if (value->IsPromise())           kinds.push_back(ValueKind::kPromise          );
+  if (value->IsMap())               kinds.push_back(ValueKind::kMap              );
+  if (value->IsSet())               kinds.push_back(ValueKind::kSet              );
+  if (value->IsMapIterator())       kinds.push_back(ValueKind::kMapIterator      );
+  if (value->IsSetIterator())       kinds.push_back(ValueKind::kSetIterator      );
+  if (value->IsWeakMap())           kinds.push_back(ValueKind::kWeakMap          );
+  if (value->IsWeakSet())           kinds.push_back(ValueKind::kWeakSet          );
+  if (value->IsArrayBuffer())       kinds.push_back(ValueKind::kArrayBuffer      );
+  if (value->IsArrayBufferView())   kinds.push_back(ValueKind::kArrayBufferView  );
+  if (value->IsTypedArray())        kinds.push_back(ValueKind::kTypedArray       );
+  if (value->IsUint8Array())        kinds.push_back(ValueKind::kUint8Array       );
+  if (value->IsUint8ClampedArray()) kinds.push_back(ValueKind::kUint8ClampedArray);
+  if (value->IsInt8Array())         kinds.push_back(ValueKind::kInt8Array        );
+  if (value->IsUint16Array())       kinds.push_back(ValueKind::kUint16Array      );
+  if (value->IsInt16Array())        kinds.push_back(ValueKind::kInt16Array       );
+  if (value->IsUint32Array())       kinds.push_back(ValueKind::kUint32Array      );
+  if (value->IsInt32Array())        kinds.push_back(ValueKind::kInt32Array       );
+  if (value->IsFloat32Array())      kinds.push_back(ValueKind::kFloat32Array     );
+  if (value->IsFloat64Array())      kinds.push_back(ValueKind::kFloat64Array     );
+  if (value->IsDataView())          kinds.push_back(ValueKind::kDataView         );
+  if (value->IsSharedArrayBuffer()) kinds.push_back(ValueKind::kSharedArrayBuffer);
+  if (value->IsProxy())             kinds.push_back(ValueKind::kProxy            );
+  if (value->IsWebAssemblyCompiledModule()) kinds.push_back(ValueKind::kWebAssemblyCompiledModule);
 
   int* data = static_cast<int*>(malloc(sizeof(int) * kinds.size()));
   memcpy(data, kinds.data(), sizeof(int) * kinds.size());
@@ -812,7 +662,7 @@ ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr
 
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
   v8::Promise* prom = v8::Promise::Cast(*value);
-  
+
   if (prom->State() == v8::Promise::PromiseState::kPending) {
     return (ValueTuple){nullptr, nullptr, 0, DupString("Promise is pending")};
   }
