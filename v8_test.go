@@ -854,14 +854,14 @@ func TestCreateComplex(t *testing.T) {
 
 	ctx.Global().Set("mega", val)
 
-	val1, _ := val.(*Array).GetIndex(1)
-	fmt.Printf("val1 type: %T\n", val1)
-	val1Sub, _ := val1.(*Object).Get("Sub")
-	fmt.Printf("val1Sub type: %T\n", val1Sub)
-	fn2, _ := val1Sub.(*Object).Get("fn2")
-	fmt.Printf("fn2 type: %T\n", fn2)
-	j, _ := fn2.(*Object).MarshalJSON()
-	fmt.Println("mega string:", string(j))
+	// val1, _ := val.(*Array).GetIndex(1)
+	// fmt.Printf("val1 type: %T\n", val1)
+	// val1Sub, _ := val1.(*Object).Get("Sub")
+	// fmt.Printf("val1Sub type: %T\n", val1Sub)
+	// fn2, _ := val1Sub.(*Object).Get("fn2")
+	// fmt.Printf("fn2 type: %T\n", fn2)
+	// j, _ := fn2.(*Object).MarshalJSON()
+	// fmt.Println("mega string:", string(j))
 
 	if res, err := ctx.Eval(`mega[1].Sub.fn2()`, "test.js"); err != nil {
 		t.Fatal(err)

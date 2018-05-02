@@ -21,7 +21,7 @@ import "C"
 var float64Type = reflect.TypeOf(float64(0))
 var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
-var valuePtrType = reflect.TypeOf((ValueIface)(nil))
+var valueType = reflect.TypeOf((*ValueIface)(nil)).Elem()
 
 // Create maps Go values into corresponding JavaScript values. This value is
 // created but NOT visible in the Context until it is explicitly passed to the
@@ -92,7 +92,7 @@ func (ctx *Context) create(val reflect.Value) (ValueIface, error) {
 }
 
 func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface, error) {
-	if val.IsValid() && val.Type() == valuePtrType {
+	if val.IsValid() && val.Type().Implements(valueType) {
 		return val.Interface().(ValueIface), nil
 	}
 
@@ -188,7 +188,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 	panic("Unknown kind!")
 }
 
-func (ctx *Context) writeStructFields(ob *Object, val reflect.Value) error {
+func (ctx *Context) writeStructFields(ob ObjectIface, val reflect.Value) error {
 	t := val.Type()
 
 	for i := 0; i < t.NumField(); i++ {
