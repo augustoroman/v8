@@ -151,7 +151,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 		}
 		return ob, nil
 	case reflect.Struct:
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(ObjectIface)
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(*Object)
 		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		arrayBuffer := false
