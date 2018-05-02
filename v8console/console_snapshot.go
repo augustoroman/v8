@@ -50,7 +50,7 @@ func WrapForSnapshot(jsCode string) string {
 // described by Config and flushes any stored log messages to the new console.
 // This is specifically intended for adapting a Context created using
 // WrapForSnapshot().
-func FlushSnapshotAndInject(ctx *v8.Context, c Config) (exception *v8.Value) {
+func FlushSnapshotAndInject(ctx *v8.Context, c Config) (exception v8.ValueIface) {
 	// Store a reference to the previous console code for flushing any stored
 	// log messages (see end of the func).  This should never fail to return
 	// a *v8.Value, even if it's "undefined".
@@ -76,7 +76,7 @@ func FlushSnapshotAndInject(ctx *v8.Context, c Config) (exception *v8.Value) {
 	// However this may fail since "undefined" won't allow .Get() at all. Even
 	// if previous is an Object, it may return "undefined" if the previous
 	// console object didn't have __flush.
-	flush, err := previous.Get("__flush")
+	flush, err := previous.(v8.ObjectIface).Get("__flush")
 	if err != nil || flush == nil {
 		return nil
 	}
@@ -84,7 +84,7 @@ func FlushSnapshotAndInject(ctx *v8.Context, c Config) (exception *v8.Value) {
 	// If flush is "undefined", this will fail with err != nil.  That's ok.
 	// If it works, we flushed any stored logs to the new Console.
 	// Otherwise, nothing happens.
-	exception, err = flush.Call(previous, current)
+	exception, err = flush.(v8.FunctionIface).Call(previous, current)
 	if err != nil || exception == nil {
 		return nil
 	}

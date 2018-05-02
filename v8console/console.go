@@ -66,7 +66,7 @@ func (c Config) Inject(ctx *v8.Context) {
 			{"error", c.Error},
 		}
 		for _, fn := range functions {
-			if err := ob.Set(fn.name, ctx.Bind(fn.name, fn.callback)); err != nil {
+			if err := ob.(v8.ObjectIface).Set(fn.name, ctx.Bind(fn.name, fn.callback)); err != nil {
 				panic(fmt.Errorf("cannot set %s on console object: %v", fn.name, err))
 			}
 		}
@@ -90,14 +90,14 @@ func (c Config) writeLog(w io.Writer, color string, vals ...interface{}) {
 	}
 	fmt.Fprint(w, "\n")
 }
-func (c Config) toInterface(vals []*v8.Value) []interface{} {
+func (c Config) toInterface(vals []v8.ValueIface) []interface{} {
 	out := make([]interface{}, len(vals))
 	for i, val := range vals {
 		out[i] = val
 	}
 	return out
 }
-func (c Config) toInterfaceWithLoc(caller v8.Loc, args []*v8.Value) []interface{} {
+func (c Config) toInterfaceWithLoc(caller v8.Loc, args []v8.ValueIface) []interface{} {
 	var vals []interface{}
 	vals = append(vals, fmt.Sprintf("[%s:%d] ", caller.Filename, caller.Line))
 	vals = append(vals, c.toInterface(args)...)
@@ -106,21 +106,21 @@ func (c Config) toInterfaceWithLoc(caller v8.Loc, args []*v8.Value) []interface{
 
 // Info is the v8 callback function that is registered for the console.log and
 // console.info functions.
-func (c Config) Info(in v8.CallbackArgs) (*v8.Value, error) {
+func (c Config) Info(in v8.CallbackArgs) (v8.ValueIface, error) {
 	c.writeLog(c.Stdout, kNO_COLOR, c.toInterface(in.Args)...)
 	return nil, nil
 }
 
 // Warn is the v8 callback function that is registered for the console.warn
 // functions.
-func (c Config) Warn(in v8.CallbackArgs) (*v8.Value, error) {
+func (c Config) Warn(in v8.CallbackArgs) (v8.ValueIface, error) {
 	c.writeLog(c.Stderr, kYELLOW, c.toInterfaceWithLoc(in.Caller, in.Args)...)
 	return nil, nil
 }
 
 // Error is the v8 callback function that is registered for the console.error
 // functions.
-func (c Config) Error(in v8.CallbackArgs) (*v8.Value, error) {
+func (c Config) Error(in v8.CallbackArgs) (v8.ValueIface, error) {
 	c.writeLog(c.Stderr, kRED, c.toInterfaceWithLoc(in.Caller, in.Args)...)
 	return nil, nil
 }
