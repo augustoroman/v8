@@ -33,7 +33,7 @@ import (
 // return value of nil will return "undefined" to javascript. Returning an
 // error will throw an exception. Panics are caught and returned as errors to
 // avoid disrupting the cgo stack.
-type Callback func(CallbackArgs) (*Value, error)
+type Callback func(CallbackArgs) (ValueIface, error)
 
 // CallbackArgs provide the context for handling a javascript callback into go.
 // Caller is the script location that javascript is calling from. If the
@@ -42,12 +42,12 @@ type Callback func(CallbackArgs) (*Value, error)
 // context that initiated the call.
 type CallbackArgs struct {
 	Caller  Loc
-	Args    []*Value
+	Args    []ValueIface
 	Context *Context
 }
 
 // Arg returns the specified argument or "undefined" if it doesn't exist.
-func (c *CallbackArgs) Arg(n int) *Value {
+func (c *CallbackArgs) Arg(n int) ValueIface {
 	if n < len(c.Args) && n >= 0 {
 		return c.Args[n]
 	}
@@ -196,7 +196,7 @@ type callbackInfo struct {
 	name string
 }
 
-func (ctx *Context) split(ret C.ValueTuple) (*Value, error) {
+func (ctx *Context) split(ret C.ValueTuple) (ValueIface, error) {
 	err := ctx.iso.convertErrorMsg(ret.error_msg)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (ctx *Context) split(ret C.ValueTuple) (*Value, error) {
 
 // Eval runs the javascript code in the VM.  The filename parameter is
 // informational only -- it is shown in javascript stack traces.
-func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
+func (ctx *Context) Eval(jsCode, filename string) (ValueIface, error) {
 	js_code_cstr := C.CString(jsCode)
 	filename_cstr := C.CString(filename)
 	addRef(ctx)
@@ -231,7 +231,7 @@ func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 //
 //     function my_func_name() { [native code] }
 //
-func (ctx *Context) Bind(name string, cb Callback) *Value {
+func (ctx *Context) Bind(name string, cb Callback) FunctionIface {
 	ctx.nextCallbackId++
 	id := ctx.nextCallbackId
 	ctx.callbacks[id] = callbackInfo{cb, name}
@@ -239,13 +239,13 @@ func (ctx *Context) Bind(name string, cb Callback) *Value {
 	defer C.free(unsafe.Pointer(cbIdStr))
 	nameStr := C.CString(name)
 	defer C.free(unsafe.Pointer(nameStr))
-	return ctx.newValue(C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr), unionKindFunction)
+	return ctx.newValue(C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr), unionKindFunction).(*Function)
 }
 
 // Global returns the JS global object for this context, with properties like
 // Object, Array, JSON, etc.
-func (ctx *Context) Global() *Value {
-	return ctx.newValue(C.v8_Context_Global(ctx.ptr), []Kind{KindObject})
+func (ctx *Context) Global() ObjectIface {
+	return ctx.newValue(C.v8_Context_Global(ctx.ptr), []Kind{KindObject}).(*Object)
 }
 func (ctx *Context) release() {
 	if ctx.ptr != nil {
@@ -264,13 +264,26 @@ func (ctx *Context) release() {
 // Terminate will interrupt any processing going on in the context.  This may
 // be called from any goroutine.
 func (ctx *Context) Terminate() { ctx.iso.Terminate() }
-func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds []Kind) *Value {
+func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds []Kind) ValueIface {
 	if ptr == nil {
 		return nil
 	}
 
-	val := &Value{ctx, ptr, kinds}
-	runtime.SetFinalizer(val, (*Value).release)
+	var val ValueIface
+	base := Value{ctx, ptr, kinds}
+
+	if isKind(kinds, KindArrayBuffer) || isKind(kinds, KindArrayBufferView) {
+		val = &ArrayBuffer{Array{Object{base}}}
+	} else if isKind(kinds, KindArray) {
+		val = &Array{Object{base}}
+	} else if isKind(kinds, KindFunction) {
+		val = &Function{Object{base}}
+	} else if isKind(kinds, KindObject) {
+		val = &Object{base}
+	} else {
+		val = &base
+	}
+	runtime.SetFinalizer(val, (ValueIface).Release)
 	return val
 }
 
@@ -290,18 +303,65 @@ func parseKinds(src C.ValueKinds) []Kind {
 
 // ParseJson uses V8's JSON.parse to parse the string and return the parsed
 // object.
-func (ctx *Context) ParseJson(json string) (*Value, error) {
-	var json_parse *Value
+func (ctx *Context) ParseJson(json string) (ValueIface, error) {
+	var json_parse ValueIface
 	if json, err := ctx.Global().Get("JSON"); err != nil {
 		return nil, fmt.Errorf("Cannot get JSON: %v", err)
-	} else if json_parse, err = json.Get("parse"); err != nil {
+	} else if json_parse, err = json.(*Object).Get("parse"); err != nil {
 		return nil, fmt.Errorf("Cannot get JSON.parse: %v", err)
 	}
 	str, err := ctx.Create(json)
 	if err != nil {
 		return nil, err
 	}
-	return json_parse.Call(json_parse, str)
+	return json_parse.(*Function).Call(json_parse, str)
+}
+
+type ArrayBufferIface interface {
+	ArrayIface
+	Bytes() []byte
+}
+
+type FunctionIface interface {
+	ObjectIface
+	Call(this ValueIface, args ...ValueIface) (ValueIface, error)
+	New(args ...ValueIface) (ValueIface, error)
+}
+
+type Function struct {
+	Object
+}
+
+type ArrayIface interface {
+	ObjectIface
+	GetIndex(idx int) (ValueIface, error)
+	SetIndex(idx int, value ValueIface) error
+}
+
+type ObjectIface interface {
+	ValueIface
+	Get(name string) (ValueIface, error)
+	Set(name string, value ValueIface) error
+}
+
+type ArrayBuffer struct {
+	Array
+}
+
+type Array struct {
+	Object
+}
+
+type Object struct {
+	Value
+}
+
+type ValueIface interface {
+	String() string
+	ToUnsafe() C.PersistentValuePtr
+	Context() *Context
+	Release()
+	IsKind(Kind) bool
 }
 
 // Value represents a handle to a value within the javascript VM.  Values are
@@ -313,12 +373,23 @@ type Value struct {
 	kinds []Kind
 }
 
+func (v *Value) ToUnsafe() C.PersistentValuePtr {
+	return v.ptr
+}
+
+func (v *Value) Context() *Context {
+	return v.ctx
+}
+
 // Bytes returns a byte slice extracted from this value when the value
 // is of type ArrayBuffer.
 // Values of other types return nil.
-func (v *Value) Bytes() []byte {
+func (v *ArrayBuffer) Bytes() []byte {
+	if !v.IsKind(KindArrayBuffer) && !v.IsKind(KindArrayBufferView) {
+		return nil
+	}
 	var len int
-	cptr := C.v8_Value_Bytes(v.ctx.ptr, v.ptr, (*C.int)(unsafe.Pointer(&len)))
+	cptr := C.v8_Value_Bytes(v.Context().ptr, v.ToUnsafe(), (*C.int)(unsafe.Pointer(&len)))
 	if cptr == nil {
 		return nil
 	}
@@ -338,8 +409,17 @@ func (v *Value) String() string {
 	return str
 }
 
+var (
+	ErrValueNotAnObject        = errors.New("value is not an object")
+	ErrValueNotAnObjectOrArray = errors.New("value is neither an object or an array")
+	ErrValueNotAFunction       = errors.New("value is not a function")
+)
+
 // Get a field from the object.  If this value is not an object, this will fail.
-func (v *Value) Get(name string) (*Value, error) {
+func (v *Object) Get(name string) (ValueIface, error) {
+	if !v.IsKind(KindObject) {
+		return nil, ErrValueNotAnObject
+	}
 	name_cstr := C.CString(name)
 	ret := C.v8_Value_Get(v.ctx.ptr, v.ptr, name_cstr)
 	C.free(unsafe.Pointer(name_cstr))
@@ -348,59 +428,75 @@ func (v *Value) Get(name string) (*Value, error) {
 
 // Get the value at the specified index.  If this value is not an object or an
 // array, this will fail.
-func (v *Value) GetIndex(idx int) (*Value, error) {
+func (v *Array) GetIndex(idx int) (ValueIface, error) {
+	if !v.IsKind(KindObject) && !v.IsKind(KindArray) {
+		return nil, ErrValueNotAnObjectOrArray
+	}
 	return v.ctx.split(C.v8_Value_GetIdx(v.ctx.ptr, v.ptr, C.int(idx)))
 }
 
 // Set a field on the object.  If this value is not an object, this
 // will fail.
-func (v *Value) Set(name string, value *Value) error {
+func (v *Object) Set(name string, value ValueIface) error {
+	if !v.IsKind(KindObject) {
+		return ErrValueNotAnObject
+	}
 	name_cstr := C.CString(name)
-	errmsg := C.v8_Value_Set(v.ctx.ptr, v.ptr, name_cstr, value.ptr)
+	errmsg := C.v8_Value_Set(v.Context().ptr, v.ToUnsafe(), name_cstr, value.ToUnsafe())
 	C.free(unsafe.Pointer(name_cstr))
 	return v.ctx.iso.convertErrorMsg(errmsg)
 }
 
 // SetIndex sets the object's value at the specified index.  If this value is
 // not an object or an array, this will fail.
-func (v *Value) SetIndex(idx int, value *Value) error {
+func (v *Array) SetIndex(idx int, value ValueIface) error {
+	if !v.IsKind(KindObject) && !v.IsKind(KindArray) {
+		return ErrValueNotAnObjectOrArray
+	}
 	return v.ctx.iso.convertErrorMsg(
-		C.v8_Value_SetIdx(v.ctx.ptr, v.ptr, C.int(idx), value.ptr))
+		C.v8_Value_SetIdx(v.Context().ptr, v.ToUnsafe(), C.int(idx), value.ToUnsafe()))
 }
 
 // Call this value as a function.  If this value is not a function, this will
 // fail.
-func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
+func (v *Function) Call(this ValueIface, args ...ValueIface) (ValueIface, error) {
+	if !v.IsKind(KindFunction) {
+		return nil, ErrValueNotAFunction
+	}
 	// always allocate at least one so &argPtrs[0] works.
 	argPtrs := make([]C.PersistentValuePtr, len(args)+1)
 	for i := range args {
-		argPtrs[i] = args[i].ptr
+		argPtrs[i] = args[i].ToUnsafe()
 	}
 	var thisPtr C.PersistentValuePtr
 	if this != nil {
-		thisPtr = this.ptr
+		thisPtr = this.ToUnsafe()
 	}
+
 	addRef(v.ctx)
-	result := C.v8_Value_Call(v.ctx.ptr, v.ptr, thisPtr, C.int(len(args)), &argPtrs[0])
+	result := C.v8_Value_Call(v.Context().ptr, v.ToUnsafe(), thisPtr, C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
 	return v.ctx.split(result)
 }
 
 // New creates a new instance of an object using this value as its constructor.
 // If this value is not a function, this will fail.
-func (v *Value) New(args ...*Value) (*Value, error) {
+func (v *Function) New(args ...ValueIface) (ValueIface, error) {
+	if !v.IsKind(KindFunction) {
+		return nil, ErrValueNotAFunction
+	}
 	// always allocate at least one so &argPtrs[0] works.
 	argPtrs := make([]C.PersistentValuePtr, len(args)+1)
 	for i := range args {
-		argPtrs[i] = args[i].ptr
+		argPtrs[i] = args[i].ToUnsafe()
 	}
 	addRef(v.ctx)
-	result := C.v8_Value_New(v.ctx.ptr, v.ptr, C.int(len(args)), &argPtrs[0])
+	result := C.v8_Value_New(v.Context().ptr, v.ToUnsafe(), C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
 	return v.ctx.split(result)
 }
 
-func (v *Value) release() {
+func (v *Value) Release() {
 	if v.ptr != nil {
 		C.v8_Value_Release(v.ctx.ptr, v.ptr)
 	}
@@ -419,13 +515,13 @@ func (v *Value) release() {
 // will serialize to this:
 //   {"bar":3}
 func (v *Value) MarshalJSON() ([]byte, error) {
-	var json_stringify *Value
+	var json_stringify ValueIface
 	if json, err := v.ctx.Global().Get("JSON"); err != nil {
 		return nil, fmt.Errorf("Cannot get JSON object: %v", err)
-	} else if json_stringify, err = json.Get("stringify"); err != nil {
+	} else if json_stringify, err = json.(*Object).Get("stringify"); err != nil {
 		return nil, fmt.Errorf("Cannot get JSON.stringify: %v", err)
 	}
-	res, err := json_stringify.Call(json_stringify, v)
+	res, err := json_stringify.(*Function).Call(json_stringify, v)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to stringify val: %v", err)
 	}
@@ -523,7 +619,7 @@ func go_callback_handler(
 	//   http://play.golang.org/p/XuC0xqtAIC
 	argv := (*[1 << 30]C.PersistentValuePtr)(unsafe.Pointer(argvptr))[:argc:argc]
 
-	args := make([]*Value, argc)
+	args := make([]ValueIface, argc)
 	for i := 0; i < int(argc); i++ {
 		args[i] = ctx.newValue(argv[i], make([]Kind, 0))
 	}
@@ -548,13 +644,13 @@ func go_callback_handler(
 
 	if res == nil {
 		return C.ValueErrorPair{}
-	} else if res.ctx.iso.ptr != ctx.iso.ptr {
+	} else if res.Context().iso.ptr != ctx.iso.ptr {
 		errmsg := fmt.Sprintf("Callback %s returned a value from another isolate.", info.name)
 		e := C.Error{ptr: C.CString(errmsg), len: C.int(len(errmsg))}
 		return C.ValueErrorPair{nil, e}
 	}
 
-	return C.ValueErrorPair{Value: res.ptr}
+	return C.ValueErrorPair{Value: res.ToUnsafe()}
 }
 
 // HeapStatistics represent v8::HeapStatistics which are statistics
@@ -598,17 +694,21 @@ func (i *Isolate) SendLowMemoryNotification() {
 // If it was rejected, then the Value is a v8 Error,
 // if the promise is pending or if the Value is not a Promise, it
 // returns nil and an error.
-func (v *Value) GetPromiseResult() (*Value, error) {
-	if !v.IsKind(KindPromise) {
-		return nil, errors.New("not a promise")
-	}
-	ret := C.v8_Value_PromiseResult(v.ctx.ptr, v.ptr)
-	return v.ctx.split(ret)
-}
+// func (v *Value) GetPromiseResult() (*Value, error) {
+// 	if !v.IsKind(KindPromise) {
+// 		return nil, errors.New("not a promise")
+// 	}
+// 	ret := C.v8_Value_PromiseResult(v.ctx.ptr, v.ptr)
+// 	return v.ctx.split(ret)
+// }
 
 // IsKind checks if the value is of Kind k
 func (v *Value) IsKind(k Kind) bool {
-	for _, kind := range v.kinds {
+	return isKind(v.kinds, k)
+}
+
+func isKind(kinds []Kind, k Kind) bool {
+	for _, kind := range kinds {
 		if kind == k {
 			return true
 		}

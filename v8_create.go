@@ -21,7 +21,7 @@ import "C"
 var float64Type = reflect.TypeOf(float64(0))
 var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
-var valuePtrType = reflect.TypeOf((*Value)(nil))
+var valuePtrType = reflect.TypeOf((ValueIface)(nil))
 
 // Create maps Go values into corresponding JavaScript values. This value is
 // created but NOT visible in the Context until it is explicitly passed to the
@@ -68,11 +68,11 @@ var valuePtrType = reflect.TypeOf((*Value)(nil))
 //    {
 //       Buf: new Uint8Array([1,2,3]).buffer
 //    }
-func (ctx *Context) Create(val interface{}) (*Value, error) {
+func (ctx *Context) Create(val interface{}) (ValueIface, error) {
 	return ctx.create(reflect.ValueOf(val))
 }
 
-func (ctx *Context) createVal(v C.ImmediateValue, kinds []Kind) *Value {
+func (ctx *Context) createVal(v C.ImmediateValue, kinds []Kind) ValueIface {
 	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v), kinds)
 }
 
@@ -87,13 +87,13 @@ func getJsName(fieldName, jsonTag string) string {
 	return jsonName // explict name specified
 }
 
-func (ctx *Context) create(val reflect.Value) (*Value, error) {
+func (ctx *Context) create(val reflect.Value) (ValueIface, error) {
 	return ctx.createWithTags(val, []string{})
 }
 
-func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, error) {
+func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface, error) {
 	if val.IsValid() && val.Type() == valuePtrType {
-		return val.Interface().(*Value), nil
+		return val.Interface().(ValueIface), nil
 	}
 
 	switch val.Kind() {
@@ -136,7 +136,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		if val.Type().Key() != stringType {
 			return nil, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
 		}
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject})
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(ObjectIface)
 		keys := val.MapKeys()
 		sort.Sort(stringKeys(keys))
 		for _, key := range keys {
@@ -147,11 +147,11 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 			if err := ob.Set(key.String(), v); err != nil {
 				return nil, err
 			}
-			v.release()
+			v.Release()
 		}
 		return ob, nil
 	case reflect.Struct:
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject})
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(ObjectIface)
 		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		arrayBuffer := false
@@ -171,7 +171,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())}, unionKindArrayBuffer)
 			return ob, nil
 		} else {
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, unionKindArray)
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, unionKindArray).(*Array)
 			for i := 0; i < val.Len(); i++ {
 				v, err := ctx.create(val.Index(i))
 				if err != nil {
@@ -180,7 +180,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 				if err := ob.SetIndex(i, v); err != nil {
 					return nil, err
 				}
-				v.release()
+				v.Release()
 			}
 			return ob, nil
 		}
@@ -188,7 +188,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 	panic("Unknown kind!")
 }
 
-func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
+func (ctx *Context) writeStructFields(ob *Object, val reflect.Value) error {
 	t := val.Type()
 
 	for i := 0; i < t.NumField(); i++ {
@@ -226,7 +226,7 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 		if err := ob.Set(name, v); err != nil {
 			return err
 		}
-		v.release()
+		v.Release()
 	}
 
 	// Also export any methods of the struct that match the callback type.
@@ -245,7 +245,7 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 			if err := ob.Set(name, v); err != nil {
 				return err
 			}
-			v.release()
+			v.Release()
 		}
 	}
 	return nil
