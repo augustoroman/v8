@@ -628,14 +628,6 @@ void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
   isolate->LowMemoryNotification();
 }
 
-ValueKinds v8_Value_Kinds(ContextPtr ctxptr, PersistentValuePtr valueptr) {
-  VALUE_SCOPE(ctxptr);
-
-  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
-
-  return v8_Value_KindsFromLocal(value);
-}
-
 ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
 

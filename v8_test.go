@@ -1078,6 +1078,34 @@ func BenchmarkContextCreate(b *testing.B) {
 	}
 }
 
+func BenchmarkEval(b *testing.B) {
+	iso := NewIsolate()
+	ctx := iso.NewContext()
+
+	script := `"hello"`
+
+	for n := 0; n < b.N; n++ {
+		if _, err := ctx.Eval(script, "bench-eval.js"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCallback(b *testing.B) {
+	ctx := NewIsolate().NewContext()
+	ctx.Global().Set("cb", ctx.Bind("cb", func(in CallbackArgs) (*Value, error) {
+		return nil, nil
+	}))
+
+	script := `cb()`
+
+	for n := 0; n < b.N; n++ {
+		if _, err := ctx.Eval(script, "bench-cb.js"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestCreateJsonTags(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
