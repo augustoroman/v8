@@ -31,6 +31,45 @@ func TestRunSimpleJS(t *testing.T) {
 	if !res.IsKind(KindNumber) {
 		t.Errorf("Expected res to be a number, but it's: %v", res.(*value).kinds)
 	}
+	if n := res.(Number).Float64(); n != 30 {
+		t.Errorf("Expected 30, got %f", n)
+	}
+	if n := res.(Number).Int64(); n != 30 {
+		t.Errorf("Expected 30, got %d", n)
+	}
+	if _, ok := res.(Boolean); ok {
+		t.Errorf("Expected the result to be a number, not a boolean")
+	}
+}
+
+func TestTypeConversion(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	boolval, err := ctx.Eval(`(true)`, `test.js`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := boolval.(Boolean).Bool(); b != true {
+		t.Errorf("Expected result to be true, got %v", b)
+	}
+
+	numob, err := ctx.Eval(`
+		n = new Number(7);
+		n.foo = 'bar';
+		n
+	`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := numob.(Number).Int64(); n != 7 {
+		t.Errorf("Expected result to be a Number 7, but got %v", n)
+	}
+	if fooval, err := numob.(Object).Get("foo"); err != nil {
+		t.Fatal(err)
+	} else if fooval.String() != "bar" {
+		t.Errorf("Expected n.foo be 'bar', but got %q", fooval)
+	}
 }
 
 func TestErrorRunningInvalidJs(t *testing.T) {
@@ -1085,6 +1124,23 @@ func BenchmarkGetValue(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		if _, err := glob.Get("hello"); err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkGetNumberValue(b *testing.B) {
+	ctx := NewIsolate().NewContext()
+	val, err := ctx.Eval(`(157)`, "bench.js")
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n += 2 {
+		if res := val.(Number).Int64(); res != 157 {
+			b.Fatal("Wrong value: ", res)
+		}
+		if res := val.(Number).Float64(); res != 157 {
+			b.Fatal("Wrong value: ", res)
 		}
 	}
 }

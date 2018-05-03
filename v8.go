@@ -279,6 +279,12 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds []Kind) Value {
 		val = &array{object{base}}
 	} else if isKind(kinds, KindFunction) {
 		val = &function{object{base}}
+	} else if isKind(kinds, KindNumberObject) {
+		val = &numberobject{object{base}}
+	} else if isKind(kinds, KindNumber) {
+		val = &number{base}
+	} else if isKind(kinds, KindBoolean) {
+		val = &boolean{base}
 	} else if isKind(kinds, KindObject) {
 		val = &object{base}
 	} else {
@@ -345,17 +351,23 @@ type Object interface {
 	Set(name string, value Value) error
 }
 
-type arrayBuffer struct {
-	array
+type Number interface {
+	Value
+	Float64() float64
+	Int64() int64
 }
 
-type array struct {
-	object
+type Boolean interface {
+	Value
+	Bool() bool
 }
 
-type object struct {
-	value
-}
+type number struct{ value }
+type numberobject struct{ object }
+type boolean struct{ value }
+type arrayBuffer struct{ array }
+type array struct{ object }
+type object struct{ value }
 
 type Value interface {
 	String() string
@@ -497,6 +509,22 @@ func (v *function) New(args ...Value) (Value, error) {
 	result := C.v8_Value_New(v.Context().ptr, v.toUnsafe(), C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
 	return v.ctx.split(result)
+}
+
+func (v *number) Float64() float64 {
+	return float64(C.v8_Value_Float64(v.Context().ptr, v.toUnsafe()))
+}
+func (v *number) Int64() int64 {
+	return int64(C.v8_Value_Int64(v.Context().ptr, v.toUnsafe()))
+}
+func (v *numberobject) Float64() float64 {
+	return float64(C.v8_Value_Float64(v.Context().ptr, v.toUnsafe()))
+}
+func (v *numberobject) Int64() int64 {
+	return int64(C.v8_Value_Int64(v.Context().ptr, v.toUnsafe()))
+}
+func (v *boolean) Bool() bool {
+	return bool(C.v8_Value_Bool(v.Context().ptr, v.toUnsafe()) == 1)
 }
 
 func (v *value) Release() {

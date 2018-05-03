@@ -575,6 +575,34 @@ String v8_Value_String(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   return DupString(value->ToString());
 }
 
+double v8_Value_Float64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<double> num = value->NumberValue(ctx);
+  if (num.IsNothing()) {
+    return 0;
+  }
+  return num.ToChecked();
+}
+int64_t v8_Value_Int64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<int64_t> num = value->IntegerValue(ctx);
+  if (num.IsNothing()) {
+    return 0;
+  }
+  return num.ToChecked();
+}
+int v8_Value_Bool(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<bool> num = value->BooleanValue(ctx);
+  if (num.IsNothing()) {
+    return 0;
+  }
+  return num.ToChecked() ? 1 : 0;
+}
+
 unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, int * length) {
   VALUE_SCOPE(ctxptr);
 

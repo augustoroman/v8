@@ -162,6 +162,9 @@ extern ValueTuple  v8_Value_New(ContextPtr ctx,
                                     int argc, PersistentValuePtr* argv);
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
 extern String v8_Value_String(ContextPtr ctx, PersistentValuePtr value);
+extern double v8_Value_Float64(ContextPtr ctx, PersistentValuePtr value);
+extern int64_t v8_Value_Int64(ContextPtr ctx, PersistentValuePtr value);
+extern int v8_Value_Bool(ContextPtr ctx, PersistentValuePtr value);
 extern unsigned char* v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value, int * length);
 
 #ifdef __cplusplus
