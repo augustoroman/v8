@@ -676,4 +676,13 @@ ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr
   return (ValueTuple){new Value(isolate, res), v8_Value_KindsFromLocal(res), nullptr};
 }
 
+uint8_t v8_Value_PromiseState(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Promise* prom = v8::Promise::Cast(*value);
+
+  return prom->State();
+}
+
 } // extern "C"

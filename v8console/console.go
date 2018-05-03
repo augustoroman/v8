@@ -39,7 +39,7 @@ type Config struct {
 // properties are replaced.
 func (c Config) Inject(ctx *v8.Context) {
 	ob, _ := ctx.Global().Get("console")
-	if ob == nil || ob.String() != "[object Object]" {
+	if ob == nil || !ob.IsKind(v8.KindObject) {
 		// If the object doesn't already exist, create a new object from scratch
 		// and inject the whole thing.
 		ctx, err := ctx.Create(map[string]interface{}{

@@ -1093,10 +1093,9 @@ func TestValueKind(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		for _, k := range kinds {
-			if !v.IsKind(k) {
-				t.Errorf("Expected %#q's return value to have kind: %s", script, k)
-			}
+		vkinds := v.getKinds()
+		if !reflect.DeepEqual(vkinds, kinds) {
+			t.Errorf("Expected %#q's return value to have kinds: %+v, got: %+v", script, kinds, vkinds)
 		}
 	}
 }
@@ -1467,5 +1466,82 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 		t.Errorf("Expected err to be nil since we ignore unhandled promise rejections. "+
 			"In the future, hopefully we'll handle these better -- in fact, maybe err "+
 			"is not-nil right now because you fixed that!  Got err = %v", err)
+	}
+}
+
+func TestPromise(t *testing.T) {
+	t.Parallel()
+
+	ctx := NewIsolate().NewContext()
+
+	// Pending
+	v, err := ctx.Eval(`new Promise((resolve, reject)=>{})`, "pending-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prom, ok := v.(Promise)
+	if !ok {
+		t.Error("expected value to be a promise")
+	}
+
+	state := prom.State()
+	if prom.State() != PromiseStatePending {
+		t.Errorf("expected promise to be pending, got: %+v", state)
+	}
+
+	res, err := prom.Result()
+	if res != nil && err == nil {
+		t.Errorf("expected promise's result to return nil and an error, got: %+v %+v", res, err)
+	}
+
+	// Resolved
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{resolve(42)})`, "resolved-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prom, ok = v.(Promise)
+	if !ok {
+		t.Error("expected value to be a promise")
+	}
+
+	state = prom.State()
+	if prom.State() != PromiseStateFulfilled {
+		t.Errorf("expected promise to be fulfilled, got: %+v", state)
+	}
+
+	res, err = prom.Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := res.(Number); !ok {
+		t.Errorf("expected promise result to be a number! got kinds: %+v", res.getKinds())
+	}
+
+	// Rejected
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{reject(new Error("nope"))})`, "rejected-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prom, ok = v.(Promise)
+	if !ok {
+		t.Error("expected value to be a promise")
+	}
+
+	state = prom.State()
+	if prom.State() != PromiseStateRejected {
+		t.Errorf("expected promise to be rejected, got: %+v", state)
+	}
+
+	res, err = prom.Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := res.(NativeError); !ok {
+		t.Errorf("expected promise result to be a native error! got kinds: %+v", res.getKinds())
 	}
 }

@@ -153,6 +153,7 @@ extern ValueTuple  v8_Value_GetIdx(ContextPtr ctx, PersistentValuePtr value, int
 extern Error           v8_Value_SetIdx(ContextPtr ctx, PersistentValuePtr value,
                                        int idx, PersistentValuePtr new_value);
 extern ValueTuple  v8_Value_PromiseResult(ContextPtr ctx, PersistentValuePtr value);
+extern uint8_t v8_Value_PromiseState(ContextPtr ctx, PersistentValuePtr value);
 extern ValueTuple  v8_Value_Call(ContextPtr ctx,
                                      PersistentValuePtr func,
                                      PersistentValuePtr self,

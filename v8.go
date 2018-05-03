@@ -285,6 +285,10 @@ func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds []Kind) Value {
 		val = &number{base}
 	} else if isKind(kinds, KindBoolean) {
 		val = &boolean{base}
+	} else if isKind(kinds, KindPromise) {
+		val = &promise{object{base}}
+	} else if isKind(kinds, KindNativeError) {
+		val = &nativeError{object{base}}
 	} else if isKind(kinds, KindObject) {
 		val = &object{base}
 	} else {
@@ -333,6 +337,7 @@ type Value interface {
 
 	// used internally only
 	toUnsafe() C.PersistentValuePtr
+	getKinds() []Kind
 }
 
 type Number interface {
@@ -736,6 +741,10 @@ func (v *value) IsKind(k Kind) bool {
 	return isKind(v.kinds, k)
 }
 
+func (v *value) getKinds() []Kind {
+	return v.kinds
+}
+
 func isKind(kinds []Kind, k Kind) bool {
 	for _, kind := range kinds {
 		if kind == k {
@@ -743,4 +752,39 @@ func isKind(kinds []Kind, k Kind) bool {
 		}
 	}
 	return false
+}
+
+type Promise interface {
+	Object
+	Result() (Value, error)
+	State() PromiseState
+}
+
+type promise struct {
+	object
+}
+
+type PromiseState uint8
+
+// Promise states
+const (
+	PromiseStatePending PromiseState = iota
+	PromiseStateFulfilled
+	PromiseStateRejected
+)
+
+func (p *promise) Result() (Value, error) {
+	return p.ctx.split(C.v8_Value_PromiseResult(p.Context().ptr, p.toUnsafe()))
+}
+
+func (p *promise) State() PromiseState {
+	return PromiseState(C.v8_Value_PromiseState(p.Context().ptr, p.toUnsafe()))
+}
+
+type NativeError interface {
+	Object
+}
+
+type nativeError struct {
+	object
 }
