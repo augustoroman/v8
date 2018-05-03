@@ -22,7 +22,7 @@ func Example() {
 	fmt.Println("add(3,4) =", res.String())      // I hope it's 7.
 
 	// You can also bind Go functions to javascript:
-	my_count_function := func(in v8.CallbackArgs) (v8.ValueIface, error) {
+	my_count_function := func(in v8.CallbackArgs) (v8.Value, error) {
 		return in.Context.Create(len(in.Args)) // ctx.Create is great for mapping Go -> JS.
 	}
 	cnt := ctx.Bind("count", my_count_function)
@@ -58,7 +58,7 @@ func Example_microtasks() {
 	ctx := v8.NewIsolate().NewContext()
 
 	// Register a simple log function in js.
-	ctx.Global().Set("log", ctx.Bind("log", func(in v8.CallbackArgs) (v8.ValueIface, error) {
+	ctx.Global().Set("log", ctx.Bind("log", func(in v8.CallbackArgs) (v8.Value, error) {
 		fmt.Println("log>", in.Arg(0).String())
 		return nil, nil
 	}))
@@ -122,14 +122,14 @@ func ExampleContext_Create_callbacks() {
 
 	// A typical use of Create is to return values from callbacks:
 	var nextId int
-	getNextIdCallback := func(in v8.CallbackArgs) (v8.ValueIface, error) {
+	getNextIdCallback := func(in v8.CallbackArgs) (v8.Value, error) {
 		nextId++
 		return ctx.Create(nextId) // Return the created corresponding v8.Value or an error.
 	}
 
 	// Because Create will use reflection to map a Go value to a JS object, it
 	// can also be used to easily bind a complex object into the JS VM.
-	resetIdsCallback := func(in v8.CallbackArgs) (v8.ValueIface, error) {
+	resetIdsCallback := func(in v8.CallbackArgs) (v8.Value, error) {
 		nextId = 0
 		return nil, nil
 	}
@@ -142,7 +142,7 @@ func ExampleContext_Create_callbacks() {
 
 	// now let's use those two callbacks and the api value:
 	_ = ctx.Global().Set("ids", myIdAPI)
-	var res v8.ValueIface
+	var res v8.Value
 	res, _ = ctx.Eval(`ids.my_api_version`, `test.js`)
 	fmt.Println(`ids.my_api_version =`, res)
 	res, _ = ctx.Eval(`ids.next()`, `test.js`)

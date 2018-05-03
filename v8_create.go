@@ -21,7 +21,7 @@ import "C"
 var float64Type = reflect.TypeOf(float64(0))
 var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
-var valueType = reflect.TypeOf((*ValueIface)(nil)).Elem()
+var valueType = reflect.TypeOf((*Value)(nil)).Elem()
 
 // Create maps Go values into corresponding JavaScript values. This value is
 // created but NOT visible in the Context until it is explicitly passed to the
@@ -68,11 +68,11 @@ var valueType = reflect.TypeOf((*ValueIface)(nil)).Elem()
 //    {
 //       Buf: new Uint8Array([1,2,3]).buffer
 //    }
-func (ctx *Context) Create(val interface{}) (ValueIface, error) {
+func (ctx *Context) Create(val interface{}) (Value, error) {
 	return ctx.create(reflect.ValueOf(val))
 }
 
-func (ctx *Context) createVal(v C.ImmediateValue, kinds []Kind) ValueIface {
+func (ctx *Context) createVal(v C.ImmediateValue, kinds []Kind) Value {
 	return ctx.newValue(C.v8_Context_Create(ctx.ptr, v), kinds)
 }
 
@@ -87,13 +87,13 @@ func getJsName(fieldName, jsonTag string) string {
 	return jsonName // explict name specified
 }
 
-func (ctx *Context) create(val reflect.Value) (ValueIface, error) {
+func (ctx *Context) create(val reflect.Value) (Value, error) {
 	return ctx.createWithTags(val, []string{})
 }
 
-func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface, error) {
+func (ctx *Context) createWithTags(val reflect.Value, tags []string) (Value, error) {
 	if val.IsValid() && val.Type().Implements(valueType) {
-		return val.Interface().(ValueIface), nil
+		return val.Interface().(Value), nil
 	}
 
 	switch val.Kind() {
@@ -136,7 +136,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 		if val.Type().Key() != stringType {
 			return nil, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
 		}
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(ObjectIface)
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(Object)
 		keys := val.MapKeys()
 		sort.Sort(stringKeys(keys))
 		for _, key := range keys {
@@ -151,7 +151,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 		}
 		return ob, nil
 	case reflect.Struct:
-		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(*Object)
+		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, []Kind{KindObject}).(Object)
 		return ob, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		arrayBuffer := false
@@ -171,7 +171,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAYBUFFER, Bytes: ptr, Len: C.int(val.Len())}, unionKindArrayBuffer)
 			return ob, nil
 		} else {
-			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, unionKindArray).(*Array)
+			ob := ctx.createVal(C.ImmediateValue{Type: C.tARRAY, Len: C.int(val.Len())}, unionKindArray).(Array)
 			for i := 0; i < val.Len(); i++ {
 				v, err := ctx.create(val.Index(i))
 				if err != nil {
@@ -188,7 +188,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (ValueIface
 	panic("Unknown kind!")
 }
 
-func (ctx *Context) writeStructFields(ob ObjectIface, val reflect.Value) error {
+func (ctx *Context) writeStructFields(ob Object, val reflect.Value) error {
 	t := val.Type()
 
 	for i := 0; i < t.NumField(); i++ {

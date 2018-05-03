@@ -10,7 +10,7 @@ import (
 // AddAllNumbers is the callback function that we'll make accessible the JS VM.
 // It will accept 2 or more numbers and return the sum. If fewer than two args
 // are passed or any of the args are not parsable as numbers, it will fail.
-func AddAllNumbers(in v8.CallbackArgs) (v8.ValueIface, error) {
+func AddAllNumbers(in v8.CallbackArgs) (v8.Value, error) {
 	if len(in.Args) < 2 {
 		return nil, fmt.Errorf("add requires at least 2 numbers, but got %d args", len(in.Args))
 	}
