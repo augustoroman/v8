@@ -651,11 +651,11 @@ func go_callback_handler(
 	//   https://github.com/golang/go/wiki/cgo
 	// and
 	//   http://play.golang.org/p/XuC0xqtAIC
-	argv := (*[1 << 30]C.PersistentValuePtr)(unsafe.Pointer(argvptr))[:argc:argc]
+	argv := (*[1 << 30]C.ValueKindsPair)(unsafe.Pointer(argvptr))[:argc:argc]
 
 	args := make([]Value, argc)
 	for i := 0; i < int(argc); i++ {
-		args[i] = ctx.newValue(argv[i], make([]Kind, 0))
+		args[i] = ctx.newValue(argv[i].Value, parseKinds(argv[i].Kinds))
 	}
 
 	// Catch panics -- if they are uncaught, they skip past the C stack and
@@ -723,18 +723,6 @@ func (i *Isolate) GetHeapStatistics() HeapStatistics {
 func (i *Isolate) SendLowMemoryNotification() {
 	C.v8_Isolate_LowMemoryNotification(i.ptr)
 }
-
-// GetPromiseResult returns the Promise's result as a Value.
-// If it was rejected, then the Value is a v8 Error,
-// if the promise is pending or if the Value is not a Promise, it
-// returns nil and an error.
-// func (v *value) GetPromiseResult() (*value, error) {
-// 	if !v.IsKind(KindPromise) {
-// 		return nil, errors.New("not a promise")
-// 	}
-// 	ret := C.v8_Value_PromiseResult(v.ctx.ptr, v.ptr)
-// 	return v.ctx.split(ret)
-// }
 
 // IsKind checks if the value is of Kind k
 func (v *value) IsKind(k Kind) bool {

@@ -99,6 +99,11 @@ typedef struct {
 typedef struct {
     PersistentValuePtr Value;
     ValueKinds Kinds;
+} ValueKindsPair;
+
+typedef struct {
+    PersistentValuePtr Value;
+    ValueKinds Kinds;
     Error error_msg;
 } ValueTuple;
 

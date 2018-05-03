@@ -22,7 +22,7 @@
   v8::Context::Scope context_scope(ctx);                 /* Scope to this context.         */
 
 extern "C" ValueErrorPair go_callback_handler(
-    String id, CallerInfo info, int argc, PersistentValuePtr* argv);
+    String id, CallerInfo info, int argc, ValueKindsPair* argv);
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
  public:
@@ -300,9 +300,9 @@ void go_callback(const v8::FunctionCallbackInfo<v8::Value>& args) {
   }
 
   int argc = args.Length();
-  PersistentValuePtr argv[argc];
+  ValueKindsPair argv[argc];
   for (int i = 0; i < argc; i++) {
-    argv[i] = new Value(iso, args[i]);
+    argv[i] = (ValueKindsPair){new Value(iso, args[i]), v8_Value_KindsFromLocal(args[i])};
   }
 
   ValueErrorPair result =
