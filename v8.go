@@ -324,31 +324,15 @@ func (ctx *Context) ParseJson(json string) (Value, error) {
 	return json_parse.(Function).Call(json_parse, str)
 }
 
-type ArrayBuffer interface {
-	Array
-	Bytes() []byte
-}
+type Value interface {
+	String() string
+	Context() *Context
+	Release()
+	IsKind(Kind) bool
+	json.Marshaler
 
-type Function interface {
-	Object
-	Call(this Value, args ...Value) (Value, error)
-	New(args ...Value) (Value, error)
-}
-
-type function struct {
-	object
-}
-
-type Array interface {
-	Object
-	GetIndex(idx int) (Value, error)
-	SetIndex(idx int, value Value) error
-}
-
-type Object interface {
-	Value
-	Get(name string) (Value, error)
-	Set(name string, value Value) error
+	// used internally only
+	toUnsafe() C.PersistentValuePtr
 }
 
 type Number interface {
@@ -362,22 +346,36 @@ type Boolean interface {
 	Bool() bool
 }
 
+type Array interface {
+	Object
+	GetIndex(idx int) (Value, error)
+	SetIndex(idx int, value Value) error
+}
+
+type ArrayBuffer interface {
+	Array
+	Bytes() []byte
+}
+
+type Object interface {
+	Value
+	Get(name string) (Value, error)
+	Set(name string, value Value) error
+}
+
+type Function interface {
+	Object
+	Call(this Value, args ...Value) (Value, error)
+	New(args ...Value) (Value, error)
+}
+
 type number struct{ value }
 type numberobject struct{ object }
 type boolean struct{ value }
-type arrayBuffer struct{ array }
 type array struct{ object }
+type arrayBuffer struct{ array }
 type object struct{ value }
-
-type Value interface {
-	String() string
-	Context() *Context
-	Release()
-	IsKind(Kind) bool
-	json.Marshaler
-
-	toUnsafe() C.PersistentValuePtr
-}
+type function struct{ object }
 
 // value represents a handle to a value within the javascript VM.  Values are
 // associated with a particular Context, but may be passed freely between
