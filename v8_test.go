@@ -898,6 +898,7 @@ func TestCreateSimple(t *testing.T) {
 		}{3, true}, "[object Object]"},
 		{[]interface{}{1, true, "three"}, "1,true,three"},
 		{tm, tm.Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")},
+		{&tm, tm.Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")},
 	}
 
 	for i, test := range testcases {

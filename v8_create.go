@@ -23,7 +23,6 @@ var float64Type = reflect.TypeOf(float64(0))
 var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
 var valuePtrType = reflect.TypeOf((*Value)(nil))
-var timePtrType = reflect.TypeOf((*time.Time)(nil))
 var timeType = reflect.TypeOf(time.Time{})
 
 // Create maps Go values into corresponding JavaScript values. This value is
@@ -35,6 +34,7 @@ var timeType = reflect.TypeOf(time.Time{})
 //   * all integers and floats are mapped to JS numbers (float64)
 //   * strings
 //   * maps (keys must be strings, values must be convertible)
+//   * time.Time values (converted to js Date object)
 //   * structs (exported field values must be convertible)
 //   * slices of convertible types
 //   * pointers to any convertible field
@@ -103,9 +103,6 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		return val.Interface().(*Value), nil
 	} else if val.Type() == timeType {
 		msec := C.double(val.Interface().(time.Time).UnixNano()) / 1e6
-		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), nil
-	} else if val.Type() == timePtrType {
-		msec := C.double(val.Interface().(*time.Time).UnixNano()) / 1e6
 		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), nil
 	}
 
