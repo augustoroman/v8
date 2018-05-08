@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -65,9 +66,7 @@ func TestBoolConversion(t *testing.T) {
 		res, err := ctx.Eval(test.js, "test.js")
 		if err != nil {
 			t.Errorf("%d %#q: Failed to run js: %v", i, test.js, err)
-		} else if b, err := res.Bool(); err != nil {
-			t.Errorf("%d %#q: Failed to convert %q to a bool: %v", i, test.js, res, err)
-		} else if b != test.expected {
+		} else if b := res.Bool(); b != test.expected {
 			t.Errorf("%d %#q: Expected bool of %v, but got %v", i, test.js, test.expected, b)
 		} else if res.IsKind(KindBoolean) != test.isBool {
 			t.Errorf("%d %#q: Expected this to be a bool kind, but it's %v", i, test.js, res.kindMask)
@@ -107,15 +106,11 @@ func TestNumberConversions(t *testing.T) {
 		t.Errorf("Expected %q to NOT be a function kind, but it is: %q", res, res.kindMask)
 	}
 
-	if f64, err := res.Float64(); err != nil {
-		t.Errorf("Expected %q to be a number, but .Float64 failed: %v", res, err)
-	} else if f64 != 13.0 {
+	if f64 := res.Float64(); f64 != 13.0 {
 		t.Errorf("Expected %q to eq 13.0, but got %f", res, f64)
 	}
 
-	if i64, err := res.Int64(); err != nil {
-		t.Errorf("Expected %q to be a number, but .Int64 failed: %v", res, err)
-	} else if i64 != 13 {
+	if i64 := res.Int64(); i64 != 13 {
 		t.Errorf("Expected %q to eq 13.0, but got %d", res, i64)
 	}
 }
@@ -133,16 +128,12 @@ func TestNumberConversionsFailForNonNumbers(t *testing.T) {
 		t.Errorf("Expected %q to NOT be a number kind, but it is: %q", res, res.kindMask)
 	}
 
-	if num, err := res.Float64(); err == nil {
-		t.Errorf("Expected .Float64 for %q fail, but it worked and returned: %v", res, num)
-	} else {
-		t.Error(err)
+	if f64 := res.Float64(); !math.IsNaN(f64) {
+		t.Errorf("Expected %q to be NaN, but got %f", res, f64)
 	}
 
-	if num, err := res.Int64(); err == nil {
-		t.Errorf("Expected .Int64 for %q fail, but it worked and returned: %v", res, num)
-	} else {
-		t.Error(err)
+	if i64 := res.Int64(); i64 != 0 {
+		t.Errorf("Expected %q to eq 0, but got %d", res, i64)
 	}
 }
 
@@ -1360,5 +1351,79 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 		t.Errorf("Expected err to be nil since we ignore unhandled promise rejections. "+
 			"In the future, hopefully we'll handle these better -- in fact, maybe err "+
 			"is not-nil right now because you fixed that!  Got err = %v", err)
+	}
+}
+
+func TestValueKind(t *testing.T) {
+	ctx := NewIsolate().NewContext()
+
+	// WASM: This wasm code corresponds to the WAT:
+	//   (module
+	//      (func $add (param $x i32) (param $y i32) (result i32)
+	//          (i32.add (get_local $x) (get_local $y)))
+	//      (export "add" $add))
+	// That exports an "add(a,b int32) int32" function.
+	const wasmCode = `
+		new Uint8Array([0,97,115,109,1,0,0,0,1,135,128,128,128,0,1,96,2,127,127,1,127,3,130,128,128,
+			128,0,1,0,6,129,128,128,128,0,0,7,135,128,128,128,0,1,3,97,100,100,0,0,10,141,128,128,128,
+			0,1,135,128,128,128,0,0,32,0,32,1,106,11])`
+
+	const wasmModule = `new WebAssembly.Module(` + wasmCode + `)`
+
+	toTest := map[string]kindMask{
+		`undefined`:                        mask(KindUndefined),
+		`null`:                             mask(KindNull),
+		`"test"`:                           unionKindString,
+		`Symbol("test")`:                   unionKindSymbol,
+		`(function(){})`:                   unionKindFunction,
+		`[]`:                               unionKindArray,
+		`new Object()`:                     mask(KindObject),
+		`true`:                             mask(KindBoolean),
+		`false`:                            mask(KindBoolean),
+		`1`:                                mask(KindNumber, KindInt32, KindUint32),
+		`new Date()`:                       unionKindDate,
+		`(function(){return arguments})()`: unionKindArgumentsObject,
+		`new Boolean`:                      unionKindBooleanObject,
+		`new Number`:                       unionKindNumberObject,
+		`new String`:                       unionKindStringObject,
+		`new Object(Symbol("test"))`:       unionKindSymbolObject,
+		`/regexp/`:                         unionKindRegExp,
+		`new Promise((res, rjt)=>{})`:      unionKindPromise,
+		`new Map()`:                        unionKindMap,
+		`new Set()`:                        unionKindSet,
+		`new ArrayBuffer(0)`:               unionKindArrayBuffer,
+		`new Uint8Array(0)`:                unionKindUint8Array,
+		`new Uint8ClampedArray(0)`:         unionKindUint8ClampedArray,
+		`new Int8Array(0)`:                 unionKindInt8Array,
+		`new Uint16Array(0)`:               unionKindUint16Array,
+		`new Int16Array(0)`:                unionKindInt16Array,
+		`new Uint32Array(0)`:               unionKindUint32Array,
+		`new Int32Array(0)`:                unionKindInt32Array,
+		`new Float32Array(0)`:              unionKindFloat32Array,
+		`new Float64Array(0)`:              unionKindFloat64Array,
+		`new DataView(new ArrayBuffer(0))`: unionKindDataView,
+		`new SharedArrayBuffer(0)`:         unionKindSharedArrayBuffer,
+		`new Proxy({}, {})`:                unionKindProxy,
+		`new WeakMap`:                      unionKindWeakMap,
+		`new WeakSet`:                      unionKindWeakSet,
+		`(async function(){})`:             unionKindAsyncFunction,
+		`(function* (){})`:                 unionKindGeneratorFunction,
+		`function* gen(){}; gen()`:         unionKindGeneratorObject,
+		`new Map()[Symbol.iterator]()`:     unionKindMapIterator,
+		`new Set()[Symbol.iterator]()`:     unionKindSetIterator,
+		`new EvalError`:                    unionKindNativeError,
+		wasmModule:                         unionKindWebAssemblyCompiledModule,
+
+		// TODO!
+		// ``: KindExternal,
+	}
+
+	for script, kindMask := range toTest {
+		v, err := ctx.Eval(script, "kind_test.js")
+		if err != nil {
+			t.Errorf("%#q: failed: %v", script, err)
+		} else if v.kindMask != kindMask {
+			t.Errorf("%#q: expected result to be %q, but got %q", script, kindMask, v.kindMask)
+		}
 	}
 }

@@ -5,7 +5,9 @@ import (
 	"strings"
 )
 
-// Kind is a possible underlying V8 representation of a *Value.
+// Kind is an underlying V8 representation of a *Value. Javascript values may
+// have multiple underyling kinds. For example, a function will be both
+// KindObject and KindFunction.
 type Kind uint8
 
 const (

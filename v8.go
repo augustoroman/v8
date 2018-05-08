@@ -303,43 +303,32 @@ type Value struct {
 // buffer, so modifying it will not be reflected in the VM.
 // Values of other types return nil.
 func (v *Value) Bytes() []byte {
-	res := C.v8_Value_Bytes(v.ctx.ptr, v.ptr)
-
-	if err := v.ctx.iso.convertErrorMsg(res.error_msg); err != nil {
-		// Error message is silently dropped here. :-/
-		// TODO(aroman) Consider breaking the API to make this return ([]byte, error).
-		return nil
-	}
-
-	mem := res.value.Mem
-	// This should never happen if the error is non-nil, right?
+	mem := C.v8_Value_Bytes(v.ctx.ptr, v.ptr)
 	if mem.ptr == nil {
 		return nil
 	}
-
 	ret := make([]byte, mem.len)
-	copy(ret, ((*[1 << 30]byte)(unsafe.Pointer(mem.ptr)))[:mem.len])
+	copy(ret, ((*[1 << 30]byte)(unsafe.Pointer(mem.ptr)))[:mem.len:mem.len])
+	// NOTE: We don't free the memory here: It's owned by V8.
 	return ret
 }
 
 // Float64 returns this Value as a float64. If this value is not a number,
-// then an error will be returned.
-func (v *Value) Float64() (float64, error) {
-	res := C.v8_Value_Float64(v.ctx.ptr, v.ptr)
-	err := v.ctx.iso.convertErrorMsg(res.error_msg)
-	return float64(res.value.Float64), err
+// then NaN will be returned.
+func (v *Value) Float64() float64 {
+	return float64(C.v8_Value_Float64(v.ctx.ptr, v.ptr))
 }
 
-func (v *Value) Int64() (int64, error) {
-	res := C.v8_Value_Int64(v.ctx.ptr, v.ptr)
-	err := v.ctx.iso.convertErrorMsg(res.error_msg)
-	return int64(res.value.Int64), err
+// Int64 returns this Value as an int64. If this value is not a number,
+// then 0 will be returned.
+func (v *Value) Int64() int64 {
+	return int64(C.v8_Value_Int64(v.ctx.ptr, v.ptr))
 }
 
-func (v *Value) Bool() (bool, error) {
-	res := C.v8_Value_Bool(v.ctx.ptr, v.ptr)
-	err := v.ctx.iso.convertErrorMsg(res.error_msg)
-	return bool(res.value.Bool != 0), err
+// Bool returns this Value as a boolean. If the underlying value is not a
+// boolean, it will be coerced to a boolean using Javascript's coercion rules.
+func (v *Value) Bool() bool {
+	return C.v8_Value_Bool(v.ctx.ptr, v.ptr) == 1
 }
 
 // String returns the string representation of the value using the ToString()

@@ -120,10 +120,10 @@ extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
 
 extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
-extern void       v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
+extern void                 v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
 
 extern ValueTuple     v8_Context_Run(ContextPtr ctx,
-                                         const char* code, const char* filename);
+                                     const char* code, const char* filename);
 extern PersistentValuePtr v8_Context_RegisterCallback(ContextPtr ctx,
                                                       const char* name, const char* id);
 extern PersistentValuePtr v8_Context_Global(ContextPtr ctx);
@@ -170,15 +170,10 @@ extern ValueTuple  v8_Value_New(ContextPtr ctx,
 extern void   v8_Value_Release(ContextPtr ctx, PersistentValuePtr value);
 extern String v8_Value_String(ContextPtr ctx, PersistentValuePtr value);
 
-typedef struct {
-    ImmediateValue value;
-    Error error_msg;
-} PrimitiveTuple;
-
-extern PrimitiveTuple v8_Value_Float64(ContextPtr ctx, PersistentValuePtr value);
-extern PrimitiveTuple v8_Value_Int64(ContextPtr ctx, PersistentValuePtr value);
-extern PrimitiveTuple v8_Value_Bool(ContextPtr ctx, PersistentValuePtr value);
-extern PrimitiveTuple v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value);
+extern double    v8_Value_Float64(ContextPtr ctx, PersistentValuePtr value);
+extern int64_t   v8_Value_Int64(ContextPtr ctx, PersistentValuePtr value);
+extern int       v8_Value_Bool(ContextPtr ctx, PersistentValuePtr value);
+extern ByteArray v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value);
 
 #ifdef __cplusplus
 }

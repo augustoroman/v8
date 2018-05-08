@@ -65,27 +65,6 @@ String DupString(const std::string& src) {
   return (String){data, int(src.length())};
 }
 
-ImmediateValue MakeImmediate(double v) {
-  ImmediateValue val; memset(&val, 0, sizeof(val));
-  val.Type = tFLOAT64; val.Float64 = v;
-  return val;
-}
-ImmediateValue MakeImmediate(int64_t v) {
-  ImmediateValue val; memset(&val, 0, sizeof(val));
-  val.Type = tINT64; val.Int64 = v;
-  return val;
-}
-ImmediateValue MakeImmediate(bool v) {
-  ImmediateValue val; memset(&val, 0, sizeof(val));
-  val.Type = tBOOL; val.Bool = v ? 1 : 0;
-  return val;
-}
-PrimitiveTuple MakePrimitiveError(const char* error_msg) {
-  PrimitiveTuple val; memset(&val, 0, sizeof(val));
-  val.error_msg = DupString(error_msg);
-  return val;
-}
-
 KindMask v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
   KindMask kinds = 0;
 
@@ -600,35 +579,35 @@ String v8_Value_String(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   return DupString(value->ToString());
 }
 
-PrimitiveTuple v8_Value_Float64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+double v8_Value_Float64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
   v8::Maybe<double> val = value->NumberValue(ctx);
   if (val.IsNothing()) {
-    return MakePrimitiveError("Not a number");
+    return 0;
   }
-  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+  return val.ToChecked();
 }
-PrimitiveTuple v8_Value_Int64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+int64_t v8_Value_Int64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
   v8::Maybe<int64_t> val = value->IntegerValue(ctx);
   if (val.IsNothing()) {
-    return MakePrimitiveError("Not a number");
+    return 0;
   }
-  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+  return val.ToChecked();
 }
-PrimitiveTuple v8_Value_Bool(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+int v8_Value_Bool(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
   v8::Maybe<bool> val = value->BooleanValue(ctx);
   if (val.IsNothing()) {
-    return MakePrimitiveError("Not a boolean");
+    return 0;
   }
-  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+  return val.ToChecked() ? 1 : 0;
 }
 
-PrimitiveTuple v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+ByteArray v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
 
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
@@ -640,19 +619,17 @@ PrimitiveTuple v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   } else if (value->IsArrayBuffer()) {
     bufPtr = v8::ArrayBuffer::Cast(*value);
   } else {
-    return MakePrimitiveError("Not a byte array");
+    return (ByteArray){ nullptr, 0 };
   }
 
   if (bufPtr == NULL) {
-    return MakePrimitiveError("Buffer is null");
+    return (ByteArray){ nullptr, 0 };
   }
 
-  PrimitiveTuple result;
-  memset(&result, 0, sizeof(result));
-  result.value.Type = tSTRING;
-  result.value.Mem.ptr = static_cast<const char*>(bufPtr->GetContents().Data());
-  result.value.Mem.len = bufPtr->GetContents().ByteLength();
-  return result;
+  return (ByteArray){
+    static_cast<const char*>(bufPtr->GetContents().Data()),
+    static_cast<int>(bufPtr->GetContents().ByteLength()),
+  };
 }
 
 HeapStatistics v8_Isolate_GetHeapStatistics(IsolatePtr isolate_ptr) {
