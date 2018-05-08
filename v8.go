@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -329,6 +330,18 @@ func (v *Value) Int64() int64 {
 // boolean, it will be coerced to a boolean using Javascript's coercion rules.
 func (v *Value) Bool() bool {
 	return C.v8_Value_Bool(v.ctx.ptr, v.ptr) == 1
+}
+
+// Date returns this Value as a time.Time. If the underlying value is not a
+// KindDate, this will return an error.
+func (v *Value) Date() (time.Time, error) {
+	if !v.IsKind(KindDate) {
+		return time.Time{}, errors.New("Not a date")
+	}
+	msec := v.Int64()
+	sec := msec / 1000
+	nsec := (msec % 1000) * 1e6
+	return time.Unix(sec, nsec), nil
 }
 
 // String returns the string representation of the value using the ToString()

@@ -879,6 +879,8 @@ func TestCreateSimple(t *testing.T) {
 
 	callback := func(CallbackArgs) (*Value, error) { return nil, nil }
 
+	tm := time.Date(2018, 5, 8, 3, 4, 5, 17, time.Local)
+
 	var testcases = []struct {
 		val interface{}
 		str string
@@ -895,6 +897,7 @@ func TestCreateSimple(t *testing.T) {
 			Bar bool
 		}{3, true}, "[object Object]"},
 		{[]interface{}{1, true, "three"}, "1,true,three"},
+		{tm, tm.Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")},
 	}
 
 	for i, test := range testcases {
@@ -1355,6 +1358,7 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 }
 
 func TestValueKind(t *testing.T) {
+	t.Parallel()
 	ctx := NewIsolate().NewContext()
 
 	// WASM: This wasm code corresponds to the WAT:
@@ -1425,5 +1429,22 @@ func TestValueKind(t *testing.T) {
 		} else if v.kindMask != kindMask {
 			t.Errorf("%#q: expected result to be %q, but got %q", script, kindMask, v.kindMask)
 		}
+	}
+}
+
+func TestDate(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`new Date("2018-05-08T08:16:46.918Z")`, "date.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tm, err := res.Date()
+	if err != nil {
+		t.Error(err)
+	} else if tm.UnixNano() != 1525767406918*1e6 {
+		t.Errorf("Wrong date: %q", tm)
 	}
 }

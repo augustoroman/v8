@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 	"unsafe"
 )
@@ -22,6 +23,8 @@ var float64Type = reflect.TypeOf(float64(0))
 var callbackType = reflect.TypeOf(Callback(nil))
 var stringType = reflect.TypeOf(string(""))
 var valuePtrType = reflect.TypeOf((*Value)(nil))
+var timePtrType = reflect.TypeOf((*time.Time)(nil))
+var timeType = reflect.TypeOf(time.Time{})
 
 // Create maps Go values into corresponding JavaScript values. This value is
 // created but NOT visible in the Context until it is explicitly passed to the
@@ -92,13 +95,21 @@ func (ctx *Context) create(val reflect.Value) (*Value, error) {
 }
 
 func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, error) {
-	if val.IsValid() && val.Type() == valuePtrType {
+	if !val.IsValid() {
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, mask(KindUndefined)), nil
+	}
+
+	if val.Type() == valuePtrType {
 		return val.Interface().(*Value), nil
+	} else if val.Type() == timeType {
+		msec := C.double(val.Interface().(time.Time).UnixNano()) / 1e6
+		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), nil
+	} else if val.Type() == timePtrType {
+		msec := C.double(val.Interface().(*time.Time).UnixNano()) / 1e6
+		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), nil
 	}
 
 	switch val.Kind() {
-	case reflect.Invalid:
-		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, mask(KindUndefined)), nil
 	case reflect.Bool:
 		bval := C.int(0)
 		if val.Bool() {

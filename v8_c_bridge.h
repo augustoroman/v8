@@ -138,6 +138,7 @@ typedef enum {
     tARRAY,
     tARRAYBUFFER,
     tUNDEFINED,
+    tDATE, // uses Float64 for msec since Unix epoch
 } ImmediateValueType;
 
 typedef struct {
