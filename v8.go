@@ -196,8 +196,8 @@ type callbackInfo struct {
 	name string
 }
 
-func (ctx *Context) split(ret C.ValueErrorPair) (*Value, error) {
-	return ctx.newValue(ret.Value), ctx.iso.convertErrorMsg(ret.error_msg)
+func (ctx *Context) split(ret C.ValueTuple) (*Value, error) {
+	return ctx.newValue(ret.Value, ret.Kinds), ctx.iso.convertErrorMsg(ret.error_msg)
 }
 
 // Eval runs the javascript code in the VM.  The filename parameter is
@@ -235,13 +235,16 @@ func (ctx *Context) Bind(name string, cb Callback) *Value {
 	defer C.free(unsafe.Pointer(cbIdStr))
 	nameStr := C.CString(name)
 	defer C.free(unsafe.Pointer(nameStr))
-	return ctx.newValue(C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr))
+	return ctx.newValue(
+		C.v8_Context_RegisterCallback(ctx.ptr, nameStr, cbIdStr),
+		unionKindFunction,
+	)
 }
 
 // Global returns the JS global object for this context, with properties like
 // Object, Array, JSON, etc.
 func (ctx *Context) Global() *Value {
-	return ctx.newValue(C.v8_Context_Global(ctx.ptr))
+	return ctx.newValue(C.v8_Context_Global(ctx.ptr), C.KindMask(KindObject))
 }
 func (ctx *Context) release() {
 	if ctx.ptr != nil {
@@ -260,12 +263,12 @@ func (ctx *Context) release() {
 // Terminate will interrupt any processing going on in the context.  This may
 // be called from any goroutine.
 func (ctx *Context) Terminate() { ctx.iso.Terminate() }
-func (ctx *Context) newValue(ptr C.PersistentValuePtr) *Value {
+func (ctx *Context) newValue(ptr C.PersistentValuePtr, kinds C.KindMask) *Value {
 	if ptr == nil {
 		return nil
 	}
 
-	val := &Value{ctx, ptr}
+	val := &Value{ctx, ptr, kindMask(kinds)}
 	runtime.SetFinalizer(val, (*Value).release)
 	return val
 }
@@ -290,23 +293,53 @@ func (ctx *Context) ParseJson(json string) (*Value, error) {
 // associated with a particular Context, but may be passed freely between
 // Contexts within an Isolate.
 type Value struct {
-	ctx *Context
-	ptr C.PersistentValuePtr
+	ctx      *Context
+	ptr      C.PersistentValuePtr
+	kindMask kindMask
 }
 
 // Bytes returns a byte slice extracted from this value when the value
-// is of type ArrayBuffer.
+// is of type ArrayBuffer. The returned byte slice is copied from the underlying
+// buffer, so modifying it will not be reflected in the VM.
 // Values of other types return nil.
 func (v *Value) Bytes() []byte {
-	var len int
-	cptr := C.v8_Value_Bytes(v.ctx.ptr, v.ptr, (*C.int)(unsafe.Pointer(&len)))
-	if cptr == nil {
+	res := C.v8_Value_Bytes(v.ctx.ptr, v.ptr)
+
+	if err := v.ctx.iso.convertErrorMsg(res.error_msg); err != nil {
+		// Error message is silently dropped here. :-/
+		// TODO(aroman) Consider breaking the API to make this return ([]byte, error).
 		return nil
 	}
 
-	ret := make([]byte, len)
-	copy(ret, ((*[1 << 30]byte)(unsafe.Pointer(cptr)))[:len])
+	mem := res.value.Mem
+	// This should never happen if the error is non-nil, right?
+	if mem.ptr == nil {
+		return nil
+	}
+
+	ret := make([]byte, mem.len)
+	copy(ret, ((*[1 << 30]byte)(unsafe.Pointer(mem.ptr)))[:mem.len])
 	return ret
+}
+
+// Float64 returns this Value as a float64. If this value is not a number,
+// then an error will be returned.
+func (v *Value) Float64() (float64, error) {
+	res := C.v8_Value_Float64(v.ctx.ptr, v.ptr)
+	err := v.ctx.iso.convertErrorMsg(res.error_msg)
+	return float64(res.value.Float64), err
+}
+
+func (v *Value) Int64() (int64, error) {
+	res := C.v8_Value_Int64(v.ctx.ptr, v.ptr)
+	err := v.ctx.iso.convertErrorMsg(res.error_msg)
+	return int64(res.value.Int64), err
+}
+
+func (v *Value) Bool() (bool, error) {
+	res := C.v8_Value_Bool(v.ctx.ptr, v.ptr)
+	err := v.ctx.iso.convertErrorMsg(res.error_msg)
+	return bool(res.value.Bool != 0), err
 }
 
 // String returns the string representation of the value using the ToString()
@@ -365,6 +398,10 @@ func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
 	result := C.v8_Value_Call(v.ctx.ptr, v.ptr, thisPtr, C.int(len(args)), &argPtrs[0])
 	decRef(v.ctx)
 	return v.ctx.split(result)
+}
+
+func (v *Value) IsKind(k Kind) bool {
+	return v.kindMask.Is(k)
 }
 
 // New creates a new instance of an object using this value as its constructor.
@@ -469,8 +506,8 @@ func go_callback_handler(
 	cbIdStr C.String,
 	caller C.CallerInfo,
 	argc C.int,
-	argvptr C.PersistentValuePtr,
-) (ret C.ValueErrorPair) {
+	argvptr *C.ValueTuple,
+) (ret C.ValueTuple) {
 	caller_loc := Loc{
 		Funcname: C.GoStringN(caller.Funcname.ptr, caller.Funcname.len),
 		Filename: C.GoStringN(caller.Filename.ptr, caller.Filename.len),
@@ -502,11 +539,11 @@ func go_callback_handler(
 	//   https://github.com/golang/go/wiki/cgo
 	// and
 	//   http://play.golang.org/p/XuC0xqtAIC
-	argv := (*[1 << 30]C.PersistentValuePtr)(unsafe.Pointer(argvptr))[:argc:argc]
+	argv := (*[1 << 30]C.ValueTuple)(unsafe.Pointer(argvptr))[:argc:argc]
 
 	args := make([]*Value, argc)
 	for i := 0; i < int(argc); i++ {
-		args[i] = ctx.newValue(argv[i])
+		args[i] = ctx.newValue(argv[i].Value, argv[i].Kinds)
 	}
 
 	// Catch panics -- if they are uncaught, they skip past the C stack and
@@ -524,18 +561,18 @@ func go_callback_handler(
 	if err != nil {
 		errmsg := err.Error()
 		e := C.Error{ptr: C.CString(errmsg), len: C.int(len(errmsg))}
-		return C.ValueErrorPair{nil, e}
+		return C.ValueTuple{nil, 0, e}
 	}
 
 	if res == nil {
-		return C.ValueErrorPair{}
+		return C.ValueTuple{}
 	} else if res.ctx.iso.ptr != ctx.iso.ptr {
 		errmsg := fmt.Sprintf("Callback %s returned a value from another isolate.", info.name)
 		e := C.Error{ptr: C.CString(errmsg), len: C.int(len(errmsg))}
-		return C.ValueErrorPair{nil, e}
+		return C.ValueTuple{nil, 0, e}
 	}
 
-	return C.ValueErrorPair{Value: res.ptr}
+	return C.ValueTuple{Value: res.ptr}
 }
 
 // HeapStatistics represent v8::HeapStatistics which are statistics

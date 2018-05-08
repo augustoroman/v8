@@ -30,6 +30,122 @@ func TestRunSimpleJS(t *testing.T) {
 	}
 }
 
+func TestBoolConversion(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	testcases := []struct {
+		js       string
+		expected bool
+		isBool   bool
+	}{
+		// These are the only values that are KindBoolean. Everything else below is
+		// implicitly converted.
+		{`true`, true, true},
+		{`false`, false, true},
+
+		// Super confusing in JS:
+		//   !!(new Boolean(false)) == true
+		//   !!(new Boolean(true)) == true
+		// That's because a non-undefined non-null Object in JS is 'true'.
+		// Also, neither of these are actually Boolean kinds -- they are
+		// BooleanObject, though.
+		{`new Boolean(true)`, true, false},
+		{`new Boolean(false)`, true, false},
+		{`undefined`, false, false},
+		{`null`, false, false},
+		{`[]`, true, false},
+		{`[1]`, true, false},
+		{`7`, true, false},
+		{`"xyz"`, true, false},
+		{`(() => 3)`, true, false},
+	}
+
+	for i, test := range testcases {
+		res, err := ctx.Eval(test.js, "test.js")
+		if err != nil {
+			t.Errorf("%d %#q: Failed to run js: %v", i, test.js, err)
+		} else if b, err := res.Bool(); err != nil {
+			t.Errorf("%d %#q: Failed to convert %q to a bool: %v", i, test.js, res, err)
+		} else if b != test.expected {
+			t.Errorf("%d %#q: Expected bool of %v, but got %v", i, test.js, test.expected, b)
+		} else if res.IsKind(KindBoolean) != test.isBool {
+			t.Errorf("%d %#q: Expected this to be a bool kind, but it's %v", i, test.js, res.kindMask)
+		}
+	}
+}
+
+func TestJsRegex(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	re, err := ctx.Eval(`/foo.*bar/`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if re.String() != `/foo.*bar/` {
+		t.Errorf("Bad stringification of regex: %#q", re)
+	}
+	if !re.IsKind(KindRegExp) {
+		t.Errorf("Wrong kind for regex: %v", re.kindMask)
+	}
+}
+
+func TestNumberConversions(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`13`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !res.IsKind(KindNumber) {
+		t.Errorf("Expected %q to be a number kind, but it's not: %q", res, res.kindMask)
+	}
+	if res.IsKind(KindFunction) {
+		t.Errorf("Expected %q to NOT be a function kind, but it is: %q", res, res.kindMask)
+	}
+
+	if f64, err := res.Float64(); err != nil {
+		t.Errorf("Expected %q to be a number, but .Float64 failed: %v", res, err)
+	} else if f64 != 13.0 {
+		t.Errorf("Expected %q to eq 13.0, but got %f", res, f64)
+	}
+
+	if i64, err := res.Int64(); err != nil {
+		t.Errorf("Expected %q to be a number, but .Int64 failed: %v", res, err)
+	} else if i64 != 13 {
+		t.Errorf("Expected %q to eq 13.0, but got %d", res, i64)
+	}
+}
+
+func TestNumberConversionsFailForNonNumbers(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`undefined`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.IsKind(KindNumber) {
+		t.Errorf("Expected %q to NOT be a number kind, but it is: %q", res, res.kindMask)
+	}
+
+	if num, err := res.Float64(); err == nil {
+		t.Errorf("Expected .Float64 for %q fail, but it worked and returned: %v", res, num)
+	} else {
+		t.Error(err)
+	}
+
+	if num, err := res.Int64(); err == nil {
+		t.Errorf("Expected .Int64 for %q fail, but it worked and returned: %v", res, num)
+	} else {
+		t.Error(err)
+	}
+}
+
 func TestErrorRunningInvalidJs(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()

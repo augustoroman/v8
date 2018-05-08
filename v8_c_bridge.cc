@@ -21,8 +21,8 @@
   v8::Local<v8::Context> ctx(static_cast<Context*>(ctxptr)->ptr.Get(isolate));                \
   v8::Context::Scope context_scope(ctx);                 /* Scope to this context.         */
 
-extern "C" ValueErrorPair go_callback_handler(
-    String id, CallerInfo info, int argc, PersistentValuePtr* argv);
+extern "C" ValueTuple go_callback_handler(
+    String id, CallerInfo info, int argc, ValueTuple* argv);
 
 class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
  public:
@@ -63,6 +63,82 @@ String DupString(const std::string& src) {
   char* data = static_cast<char*>(malloc(src.length()));
   memcpy(data, src.data(), src.length());
   return (String){data, int(src.length())};
+}
+
+ImmediateValue MakeImmediate(double v) {
+  ImmediateValue val; memset(&val, 0, sizeof(val));
+  val.Type = tFLOAT64; val.Float64 = v;
+  return val;
+}
+ImmediateValue MakeImmediate(int64_t v) {
+  ImmediateValue val; memset(&val, 0, sizeof(val));
+  val.Type = tINT64; val.Int64 = v;
+  return val;
+}
+ImmediateValue MakeImmediate(bool v) {
+  ImmediateValue val; memset(&val, 0, sizeof(val));
+  val.Type = tBOOL; val.Bool = v ? 1 : 0;
+  return val;
+}
+PrimitiveTuple MakePrimitiveError(const char* error_msg) {
+  PrimitiveTuple val; memset(&val, 0, sizeof(val));
+  val.error_msg = DupString(error_msg);
+  return val;
+}
+
+KindMask v8_Value_KindsFromLocal(v8::Local<v8::Value> value) {
+  KindMask kinds = 0;
+
+  if (value->IsUndefined())         kinds |= (1ULL << Kind::kUndefined        );
+  if (value->IsNull())              kinds |= (1ULL << Kind::kNull             );
+  if (value->IsName())              kinds |= (1ULL << Kind::kName             );
+  if (value->IsString())            kinds |= (1ULL << Kind::kString           );
+  if (value->IsSymbol())            kinds |= (1ULL << Kind::kSymbol           );
+  if (value->IsObject())            kinds |= (1ULL << Kind::kObject           );
+  if (value->IsArray())             kinds |= (1ULL << Kind::kArray            );
+  if (value->IsBoolean())           kinds |= (1ULL << Kind::kBoolean          );
+  if (value->IsNumber())            kinds |= (1ULL << Kind::kNumber           );
+  if (value->IsExternal())          kinds |= (1ULL << Kind::kExternal         );
+  if (value->IsInt32())             kinds |= (1ULL << Kind::kInt32            );
+  if (value->IsUint32())            kinds |= (1ULL << Kind::kUint32           );
+  if (value->IsDate())              kinds |= (1ULL << Kind::kDate             );
+  if (value->IsArgumentsObject())   kinds |= (1ULL << Kind::kArgumentsObject  );
+  if (value->IsBooleanObject())     kinds |= (1ULL << Kind::kBooleanObject    );
+  if (value->IsNumberObject())      kinds |= (1ULL << Kind::kNumberObject     );
+  if (value->IsStringObject())      kinds |= (1ULL << Kind::kStringObject     );
+  if (value->IsSymbolObject())      kinds |= (1ULL << Kind::kSymbolObject     );
+  if (value->IsNativeError())       kinds |= (1ULL << Kind::kNativeError      );
+  if (value->IsRegExp())            kinds |= (1ULL << Kind::kRegExp           );
+  if (value->IsFunction())          kinds |= (1ULL << Kind::kFunction         );
+  if (value->IsAsyncFunction())     kinds |= (1ULL << Kind::kAsyncFunction    );
+  if (value->IsGeneratorFunction()) kinds |= (1ULL << Kind::kGeneratorFunction);
+  if (value->IsGeneratorObject())   kinds |= (1ULL << Kind::kGeneratorObject  );
+  if (value->IsPromise())           kinds |= (1ULL << Kind::kPromise          );
+  if (value->IsMap())               kinds |= (1ULL << Kind::kMap              );
+  if (value->IsSet())               kinds |= (1ULL << Kind::kSet              );
+  if (value->IsMapIterator())       kinds |= (1ULL << Kind::kMapIterator      );
+  if (value->IsSetIterator())       kinds |= (1ULL << Kind::kSetIterator      );
+  if (value->IsWeakMap())           kinds |= (1ULL << Kind::kWeakMap          );
+  if (value->IsWeakSet())           kinds |= (1ULL << Kind::kWeakSet          );
+  if (value->IsArrayBuffer())       kinds |= (1ULL << Kind::kArrayBuffer      );
+  if (value->IsArrayBufferView())   kinds |= (1ULL << Kind::kArrayBufferView  );
+  if (value->IsTypedArray())        kinds |= (1ULL << Kind::kTypedArray       );
+  if (value->IsUint8Array())        kinds |= (1ULL << Kind::kUint8Array       );
+  if (value->IsUint8ClampedArray()) kinds |= (1ULL << Kind::kUint8ClampedArray);
+  if (value->IsInt8Array())         kinds |= (1ULL << Kind::kInt8Array        );
+  if (value->IsUint16Array())       kinds |= (1ULL << Kind::kUint16Array      );
+  if (value->IsInt16Array())        kinds |= (1ULL << Kind::kInt16Array       );
+  if (value->IsUint32Array())       kinds |= (1ULL << Kind::kUint32Array      );
+  if (value->IsInt32Array())        kinds |= (1ULL << Kind::kInt32Array       );
+  if (value->IsFloat32Array())      kinds |= (1ULL << Kind::kFloat32Array     );
+  if (value->IsFloat64Array())      kinds |= (1ULL << Kind::kFloat64Array     );
+  if (value->IsDataView())          kinds |= (1ULL << Kind::kDataView         );
+  if (value->IsSharedArrayBuffer()) kinds |= (1ULL << Kind::kSharedArrayBuffer);
+  if (value->IsProxy())             kinds |= (1ULL << Kind::kProxy            );
+  if (value->IsWebAssemblyCompiledModule())
+    kinds |= (1ULL << Kind::kWebAssemblyCompiledModule);
+
+  return kinds;
 }
 
 std::string str(v8::Local<v8::Value> value) {
@@ -173,7 +249,7 @@ void v8_Isolate_Release(IsolatePtr isolate_ptr) {
   isolate->Dispose();
 }
 
-ValueErrorPair v8_Context_Run(ContextPtr ctxptr, const char* code, const char* filename) {
+ValueTuple v8_Context_Run(ContextPtr ctxptr, const char* code, const char* filename) {
   Context* ctx = static_cast<Context*>(ctxptr);
   v8::Isolate* isolate = ctx->isolate;
   v8::Locker locker(isolate);
@@ -185,7 +261,7 @@ ValueErrorPair v8_Context_Run(ContextPtr ctxptr, const char* code, const char* f
 
   filename = filename ? filename : "(no file)";
 
-  ValueErrorPair res = { nullptr, nullptr };
+  ValueTuple res = { nullptr, 0, nullptr };
 
   v8::Local<v8::Script> script = v8::Script::Compile(
       v8::String::NewFromUtf8(isolate, code),
@@ -202,6 +278,7 @@ ValueErrorPair v8_Context_Run(ContextPtr ctxptr, const char* code, const char* f
     res.error_msg = DupString(report_exception(isolate, ctx->ptr.Get(isolate), try_catch));
   } else {
     res.Value = static_cast<PersistentValuePtr>(new Value(isolate, result));
+    res.Kinds = v8_Value_KindsFromLocal(result);
   }
 
 	return res;
@@ -241,12 +318,12 @@ void go_callback(const v8::FunctionCallbackInfo<v8::Value>& args) {
   }
 
   int argc = args.Length();
-  PersistentValuePtr argv[argc];
+  ValueTuple argv[argc];
   for (int i = 0; i < argc; i++) {
-    argv[i] = new Value(iso, args[i]);
+    argv[i] = (ValueTuple){new Value(iso, args[i]), v8_Value_KindsFromLocal(args[i])};
   }
 
-  ValueErrorPair result =
+  ValueTuple result =
       go_callback_handler(
         (String){id.data(), int(id.length())},
         (CallerInfo){
@@ -286,49 +363,59 @@ PersistentValuePtr v8_Context_Create(ContextPtr ctxptr, ImmediateValue val) {
   VALUE_SCOPE(ctxptr);
 
   switch (val.Type) {
-    case tSTRING:
-      return new Value(isolate, v8::String::NewFromUtf8(
-        isolate, val.Str.ptr, v8::NewStringType::kNormal, val.Str.len).ToLocalChecked());
-    case tNUMBER:      return new Value(isolate, v8::Number::New(isolate, val.Num));                    break;
-    case tBOOL:        return new Value(isolate, v8::Boolean::New(isolate, val.BoolVal == 1));          break;
-    case tOBJECT:      return new Value(isolate, v8::Object::New(isolate));                             break;
-    case tARRAY:       return new Value(isolate, v8::Array::New(isolate, val.Len));                     break;
+    case tARRAY:       return new Value(isolate, v8::Array::New(isolate, val.Mem.len)); break;
     case tARRAYBUFFER: {
-        v8::Local<v8::ArrayBuffer> buf = v8::ArrayBuffer::New(isolate, val.Len);
-        memcpy(buf->GetContents().Data(), val.Bytes, val.Len);
+        v8::Local<v8::ArrayBuffer> buf = v8::ArrayBuffer::New(isolate, val.Mem.len);
+        memcpy(buf->GetContents().Data(), val.Mem.ptr, val.Mem.len);
         return new Value(isolate, buf);
-    } break;
-    case tUNDEFINED:   return new Value(isolate, v8::Undefined(isolate));                               break;
+        break;
+    }
+    case tBOOL:        return new Value(isolate, v8::Boolean::New(isolate, val.Bool == 1)); break;
+    case tFLOAT64:     return new Value(isolate, v8::Number::New(isolate, val.Float64)); break;
+    // For now, this is converted to a double on entry.
+    // TODO(aroman) Consider using BigInt, but only if the V8 version supports
+    // it. Check to see what V8 versions support BigInt.
+    case tINT64:       return new Value(isolate, v8::Number::New(isolate, double(val.Int64))); break;
+    case tOBJECT:      return new Value(isolate, v8::Object::New(isolate)); break;
+    case tSTRING: {
+      return new Value(isolate, v8::String::NewFromUtf8(
+        isolate, val.Mem.ptr, v8::NewStringType::kNormal, val.Mem.len).ToLocalChecked());
+      break;
+    }
+    case tUNDEFINED:   return new Value(isolate, v8::Undefined(isolate)); break;
   }
   return nullptr;
 }
 
-ValueErrorPair v8_Value_Get(ContextPtr ctxptr, PersistentValuePtr valueptr, const char* field) {
+ValueTuple v8_Value_Get(ContextPtr ctxptr, PersistentValuePtr valueptr, const char* field) {
   VALUE_SCOPE(ctxptr);
 
   Value* value = static_cast<Value*>(valueptr);
   v8::Local<v8::Value> maybeObject = value->Get(isolate);
   if (!maybeObject->IsObject()) {
-    return (ValueErrorPair){nullptr, DupString("Not an object")};
+    return (ValueTuple){nullptr, 0, DupString("Not an object")};
   }
 
   // We can safely call `ToLocalChecked`, because
   // we've just created the local object above.
   v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
 
-  ValueErrorPair res = { nullptr, nullptr };
-  res.Value = new Value(isolate,
-    object->Get(ctx, v8::String::NewFromUtf8(isolate, field)).ToLocalChecked());
-  return res;
+  v8::Local<v8::Value> localValue = object->Get(ctx, v8::String::NewFromUtf8(isolate, field)).ToLocalChecked();
+
+  return (ValueTuple){
+    new Value(isolate, localValue),
+    v8_Value_KindsFromLocal(localValue),
+    nullptr,
+  };
 }
 
-ValueErrorPair v8_Value_GetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr, int idx) {
+ValueTuple v8_Value_GetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr, int idx) {
   VALUE_SCOPE(ctxptr);
 
   Value* value = static_cast<Value*>(valueptr);
   v8::Local<v8::Value> maybeObject = value->Get(isolate);
   if (!maybeObject->IsObject()) {
-    return (ValueErrorPair){nullptr, DupString("Not an object")};
+    return (ValueTuple){nullptr, 0, DupString("Not an object")};
   }
 
   v8::Local<v8::Value> obj;
@@ -345,9 +432,7 @@ ValueErrorPair v8_Value_GetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr, i
     v8::Local<v8::Object> object = maybeObject->ToObject(ctx).ToLocalChecked();
     obj = object->Get(ctx, uint32_t(idx)).ToLocalChecked();
   }
-  ValueErrorPair res = { nullptr, nullptr };
-  res.Value = new Value(isolate, obj);
-  return res;
+  return (ValueTuple){new Value(isolate, obj), v8_Value_KindsFromLocal(obj), nullptr};
 }
 
 Error v8_Value_Set(ContextPtr ctxptr, PersistentValuePtr valueptr,
@@ -418,7 +503,7 @@ Error v8_Value_SetIdx(ContextPtr ctxptr, PersistentValuePtr valueptr,
   return (Error){nullptr, 0};
 }
 
-ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
+ValueTuple v8_Value_Call(ContextPtr ctxptr,
                              PersistentValuePtr funcptr,
                              PersistentValuePtr selfptr,
                              int argc, PersistentValuePtr* argvptr) {
@@ -429,7 +514,7 @@ ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
   if (!func_val->IsFunction()) {
-    return (ValueErrorPair){nullptr, DupString("Not a function")};
+    return (ValueTuple){nullptr, 0, DupString("Not a function")};
   }
   v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_val);
 
@@ -450,16 +535,18 @@ ValueErrorPair v8_Value_Call(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, ctx, try_catch))};
+    return (ValueTuple){nullptr, 0, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
-  return (ValueErrorPair){
-    static_cast<PersistentValuePtr>(new Value(isolate, result.ToLocalChecked())),
+  v8::Local<v8::Value> value = result.ToLocalChecked();
+  return (ValueTuple){
+    static_cast<PersistentValuePtr>(new Value(isolate, value)),
+    v8_Value_KindsFromLocal(value),
     nullptr
   };
 }
 
-ValueErrorPair v8_Value_New(ContextPtr ctxptr,
+ValueTuple v8_Value_New(ContextPtr ctxptr,
                             PersistentValuePtr funcptr,
                             int argc, PersistentValuePtr* argvptr) {
   VALUE_SCOPE(ctxptr);
@@ -469,7 +556,7 @@ ValueErrorPair v8_Value_New(ContextPtr ctxptr,
 
   v8::Local<v8::Value> func_val = static_cast<Value*>(funcptr)->Get(isolate);
   if (!func_val->IsFunction()) {
-    return (ValueErrorPair){nullptr, DupString("Not a function")};
+    return (ValueTuple){nullptr, 0, DupString("Not a function")};
   }
   v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_val);
 
@@ -483,11 +570,13 @@ ValueErrorPair v8_Value_New(ContextPtr ctxptr,
   delete[] argv;
 
   if (result.IsEmpty()) {
-    return (ValueErrorPair){nullptr, DupString(report_exception(isolate, ctx, try_catch))};
+    return (ValueTuple){nullptr, 0, DupString(report_exception(isolate, ctx, try_catch))};
   }
 
-  return (ValueErrorPair){
-    static_cast<PersistentValuePtr>(new Value(isolate, result.ToLocalChecked())),
+  v8::Local<v8::Value> value = result.ToLocalChecked();
+  return (ValueTuple){
+    static_cast<PersistentValuePtr>(new Value(isolate, value)),
+    v8_Value_KindsFromLocal(value),
     nullptr
   };
 }
@@ -511,7 +600,35 @@ String v8_Value_String(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   return DupString(value->ToString());
 }
 
-unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, int * length) {
+PrimitiveTuple v8_Value_Float64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<double> val = value->NumberValue(ctx);
+  if (val.IsNothing()) {
+    return MakePrimitiveError("Not a number");
+  }
+  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+}
+PrimitiveTuple v8_Value_Int64(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<int64_t> val = value->IntegerValue(ctx);
+  if (val.IsNothing()) {
+    return MakePrimitiveError("Not a number");
+  }
+  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+}
+PrimitiveTuple v8_Value_Bool(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Maybe<bool> val = value->BooleanValue(ctx);
+  if (val.IsNothing()) {
+    return MakePrimitiveError("Not a boolean");
+  }
+  return (PrimitiveTuple){ MakeImmediate(val.ToChecked()), nullptr };
+}
+
+PrimitiveTuple v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr) {
   VALUE_SCOPE(ctxptr);
 
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
@@ -523,17 +640,19 @@ unsigned char* v8_Value_Bytes(ContextPtr ctxptr, PersistentValuePtr valueptr, in
   } else if (value->IsArrayBuffer()) {
     bufPtr = v8::ArrayBuffer::Cast(*value);
   } else {
-    return NULL;
+    return MakePrimitiveError("Not a byte array");
   }
 
   if (bufPtr == NULL) {
-    return NULL;
+    return MakePrimitiveError("Buffer is null");
   }
 
-  if (length != NULL) {
-    *length = bufPtr->GetContents().ByteLength();
-  }
-  return static_cast<unsigned char*>(bufPtr->GetContents().Data());
+  PrimitiveTuple result;
+  memset(&result, 0, sizeof(result));
+  result.value.Type = tSTRING;
+  result.value.Mem.ptr = static_cast<const char*>(bufPtr->GetContents().Data());
+  result.value.Mem.len = bufPtr->GetContents().ByteLength();
+  return result;
 }
 
 HeapStatistics v8_Isolate_GetHeapStatistics(IsolatePtr isolate_ptr) {
@@ -562,6 +681,29 @@ void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
   }
   ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
   isolate->LowMemoryNotification();
+}
+
+ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Promise* prom = v8::Promise::Cast(*value);
+
+  if (prom->State() == v8::Promise::PromiseState::kPending) {
+    return (ValueTuple){nullptr, 0, DupString("Promise is pending")};
+  }
+
+  v8::Local<v8::Value> res = prom->Result();
+  return (ValueTuple){new Value(isolate, res), v8_Value_KindsFromLocal(res), nullptr};
+}
+
+uint8_t v8_Value_PromiseState(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+  VALUE_SCOPE(ctxptr);
+
+  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
+  v8::Promise* prom = v8::Promise::Cast(*value);
+
+  return prom->State();
 }
 
 } // extern "C"
