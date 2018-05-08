@@ -228,6 +228,10 @@ func (ctx *Context) Eval(jsCode, filename string) (*Value, error) {
 //
 //     function my_func_name() { [native code] }
 //
+// NOTE: Once registered, a callback function will be stored in the Context
+// until it is GC'd, so each Bind for a given context will take up a little
+// more memory each time. Normally this isn't a problem, but many many Bind's
+// on a Context can gradually consume memory.
 func (ctx *Context) Bind(name string, cb Callback) *Value {
 	ctx.nextCallbackId++
 	id := ctx.nextCallbackId
