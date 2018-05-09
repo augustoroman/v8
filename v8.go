@@ -406,6 +406,8 @@ func (v *Value) Call(this *Value, args ...*Value) (*Value, error) {
 	return v.ctx.split(result)
 }
 
+// IsKind will test whether the underlying value is the specified JS kind.
+// The kind of a value is set when the value is created and will not change.
 func (v *Value) IsKind(k Kind) bool {
 	return v.kindMask.Is(k)
 }
