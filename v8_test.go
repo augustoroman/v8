@@ -26,8 +26,8 @@ func TestRunSimpleJS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error evaluating javascript, err: %v", err)
 	}
-	if str := res.String(); str != "30" {
-		t.Errorf("Expected 30, got %q", str)
+	if num := res.Int64(); num != 30 {
+		t.Errorf("Expected 30, got %v", res)
 	}
 }
 
@@ -285,8 +285,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v, err := data.GetIndex(1)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v.String(); str != "2" {
-		t.Errorf("Wrong value, expected 2, got %s", str)
+	} else if num := v.Int64(); num != 2 {
+		t.Errorf("Wrong value, expected 2, got %v (%v)", num, v)
 	}
 
 	v2, err := data.GetIndex(17)
@@ -299,16 +299,16 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v3, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v3.String(); str != "3" {
-		t.Errorf("Expected undefined, got %s", str)
+	} else if num := v3.Int64(); num != 3 {
+		t.Errorf("Expected undefined, got %v (%v)", num, v3)
 	}
 
 	data.SetIndex(2, v)
 	v2, err = data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v2.String(); str != "2" {
-		t.Errorf("Expected 2, got %s", str)
+	} else if num := v2.Int64(); num != 2 {
+		t.Errorf("Expected 2, got %v (%v)", num, v2)
 	}
 
 	largeValue, err := ctx.Create(int(500))
@@ -321,8 +321,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v4, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v4.String(); str != "244" {
-		t.Errorf("Expected 244, got %s", str)
+	} else if num := v4.Int64(); num != 244 {
+		t.Errorf("Expected 244, got %v (%v)", num, v4)
 	}
 
 	negativeValue, err := ctx.Create(int(-55))
@@ -335,8 +335,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v5, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v5.String(); str != "201" {
-		t.Errorf("Expected 201, got %s", str)
+	} else if num := v5.Int64(); num != 201 {
+		t.Errorf("Expected 201, got %v (%v)", num, v5)
 	}
 }
 
@@ -351,8 +351,8 @@ func TestReadAndWriteIndexFromArray(t *testing.T) {
 	v, err := val.GetIndex(1)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v.String(); str != "2" {
-		t.Errorf("Wrong value, expected 2, got %s", str)
+	} else if num := v.Int64(); num != 2 {
+		t.Errorf("Wrong value, expected 2, got %v (%v)", num, v)
 	}
 
 	v2, err := val.GetIndex(17)
@@ -366,8 +366,8 @@ func TestReadAndWriteIndexFromArray(t *testing.T) {
 	v2, err = val.GetIndex(17)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v2.String(); str != "2" {
-		t.Errorf("Expected 2, got %s", str)
+	} else if num := v2.Int64(); num != 2 {
+		t.Errorf("Expected 2, got %v (%v)", num, v2)
 	}
 }
 
@@ -421,8 +421,8 @@ func TestSetField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 }
 
@@ -447,8 +447,8 @@ func TestRunningCodeInContextAfterThrowingError(t *testing.T) {
 		t.Fatal("Expected it to work, but got:", err)
 	}
 
-	if str := res.String(); str != "11" {
-		t.Errorf("Expected 11, got: %q", str)
+	if num := res.Int64(); num != 11 {
+		t.Errorf("Expected 11, got: %v (%v)", num, res)
 	}
 }
 
@@ -509,8 +509,8 @@ func TestCallFunctionWithExplicitThis(t *testing.T) {
 	res, err := add.Call(this, one, two)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "6" {
-		t.Errorf("Expected 6, got %q", str)
+	} else if num := res.Int64(); num != 6 {
+		t.Errorf("Expected 6, got %v (%v)", num, res)
 	}
 }
 
@@ -524,8 +524,8 @@ func TestCallFunctionWithGlobalScope(t *testing.T) {
 	res, err := add.Call(nil, one, two)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "7" {
-		t.Errorf("Expected 7, got %q", str)
+	} else if num := res.Int64(); num != 7 {
+		t.Errorf("Expected 7, got %v (%v)", num, res)
 	}
 }
 
@@ -552,8 +552,8 @@ func TestNewFunction(t *testing.T) {
 	res, err := obj.Get("x")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "1" {
-		t.Errorf("Expected 1, got %q", str)
+	} else if num := res.Int64(); num != 1 {
+		t.Errorf("Expected 1, got %v (%v)", num, res)
 	}
 }
 
@@ -582,8 +582,8 @@ func TestNewFunctionWithArgs(t *testing.T) {
 	res, err := obj.Get("x")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	} else if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 }
 
@@ -625,8 +625,8 @@ func TestBind(t *testing.T) {
 	`, "somefile.js")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	} else if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 
 	expectedLoc = Loc{"", "", 0, 0} // empty when called directly from Go
@@ -778,8 +778,8 @@ func TestEs6Destructuring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if str := bar.String(); str != "6" {
-		t.Errorf("Expected 6, got %q", str)
+	if num := bar.Int64(); num != 6 {
+		t.Errorf("Expected 6, got %v (%v)", num, bar)
 	}
 }
 
