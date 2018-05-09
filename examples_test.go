@@ -22,18 +22,22 @@ func Example() {
 	fmt.Println("add(3,4) =", res.String())      // I hope it's 7.
 
 	// You can also bind Go functions to javascript:
-	my_count_function := func(in v8.CallbackArgs) (*v8.Value, error) {
-		return in.Context.Create(len(in.Args)) // ctx.Create is great for mapping Go -> JS.
+	product := func(in v8.CallbackArgs) (*v8.Value, error) {
+		var result float64 = 1
+		for _, arg := range in.Args {
+			result *= arg.Float64()
+		}
+		return in.Context.Create(result) // ctx.Create is great for mapping Go -> JS.
 	}
-	cnt := ctx.Bind("count", my_count_function)
-	ctx.Global().Set("count_args", cnt)
+	cnt := ctx.Bind("product_function", product)
+	ctx.Global().Set("product", cnt)
 
 	res, _ = ctx.Eval(`
             // Now we can call that function in JS
-            count_args(1,2,3,4,5)
+            product(1,2,3,4,5)
         `, "compute2.js")
 
-	fmt.Println("count_args(1,2,3,4,5) =", res.String())
+	fmt.Println("product(1,2,3,4,5) =", res.Int64())
 
 	_, err := ctx.Eval(`
             // Sometimes there's a mistake in your js code:
@@ -43,7 +47,7 @@ func Example() {
 
 	// output:
 	// add(3,4) = 7
-	// count_args(1,2,3,4,5) = 5
+	// product(1,2,3,4,5) = 120
 	// Err: Uncaught exception: SyntaxError: Unexpected identifier
 	// at ooops.js:3:20
 	//               functin broken(a,b) { return a+b; }
