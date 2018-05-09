@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -25,8 +26,114 @@ func TestRunSimpleJS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error evaluating javascript, err: %v", err)
 	}
-	if str := res.String(); str != "30" {
-		t.Errorf("Expected 30, got %q", str)
+	if num := res.Int64(); num != 30 {
+		t.Errorf("Expected 30, got %v", res)
+	}
+}
+
+func TestBoolConversion(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	testcases := []struct {
+		js       string
+		expected bool
+		isBool   bool
+	}{
+		// These are the only values that are KindBoolean. Everything else below is
+		// implicitly converted.
+		{`true`, true, true},
+		{`false`, false, true},
+
+		// Super confusing in JS:
+		//   !!(new Boolean(false)) == true
+		//   !!(new Boolean(true)) == true
+		// That's because a non-undefined non-null Object in JS is 'true'.
+		// Also, neither of these are actually Boolean kinds -- they are
+		// BooleanObject, though.
+		{`new Boolean(true)`, true, false},
+		{`new Boolean(false)`, true, false},
+		{`undefined`, false, false},
+		{`null`, false, false},
+		{`[]`, true, false},
+		{`[1]`, true, false},
+		{`7`, true, false},
+		{`"xyz"`, true, false},
+		{`(() => 3)`, true, false},
+	}
+
+	for i, test := range testcases {
+		res, err := ctx.Eval(test.js, "test.js")
+		if err != nil {
+			t.Errorf("%d %#q: Failed to run js: %v", i, test.js, err)
+		} else if b := res.Bool(); b != test.expected {
+			t.Errorf("%d %#q: Expected bool of %v, but got %v", i, test.js, test.expected, b)
+		} else if res.IsKind(KindBoolean) != test.isBool {
+			t.Errorf("%d %#q: Expected this to be a bool kind, but it's %v", i, test.js, res.kindMask)
+		}
+	}
+}
+
+func TestJsRegex(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	re, err := ctx.Eval(`/foo.*bar/`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if re.String() != `/foo.*bar/` {
+		t.Errorf("Bad stringification of regex: %#q", re)
+	}
+	if !re.IsKind(KindRegExp) {
+		t.Errorf("Wrong kind for regex: %v", re.kindMask)
+	}
+}
+
+func TestNumberConversions(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`13`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !res.IsKind(KindNumber) {
+		t.Errorf("Expected %q to be a number kind, but it's not: %q", res, res.kindMask)
+	}
+	if res.IsKind(KindFunction) {
+		t.Errorf("Expected %q to NOT be a function kind, but it is: %q", res, res.kindMask)
+	}
+
+	if f64 := res.Float64(); f64 != 13.0 {
+		t.Errorf("Expected %q to eq 13.0, but got %f", res, f64)
+	}
+
+	if i64 := res.Int64(); i64 != 13 {
+		t.Errorf("Expected %q to eq 13.0, but got %d", res, i64)
+	}
+}
+
+func TestNumberConversionsFailForNonNumbers(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`undefined`, "test.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.IsKind(KindNumber) {
+		t.Errorf("Expected %q to NOT be a number kind, but it is: %q", res, res.kindMask)
+	}
+
+	if f64 := res.Float64(); !math.IsNaN(f64) {
+		t.Errorf("Expected %q to be NaN, but got %f", res, f64)
+	}
+
+	if i64 := res.Int64(); i64 != 0 {
+		t.Errorf("Expected %q to eq 0, but got %d", res, i64)
 	}
 }
 
@@ -178,8 +285,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v, err := data.GetIndex(1)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v.String(); str != "2" {
-		t.Errorf("Wrong value, expected 2, got %s", str)
+	} else if num := v.Int64(); num != 2 {
+		t.Errorf("Wrong value, expected 2, got %v (%v)", num, v)
 	}
 
 	v2, err := data.GetIndex(17)
@@ -192,16 +299,16 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v3, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v3.String(); str != "3" {
-		t.Errorf("Expected undefined, got %s", str)
+	} else if num := v3.Int64(); num != 3 {
+		t.Errorf("Expected undefined, got %v (%v)", num, v3)
 	}
 
 	data.SetIndex(2, v)
 	v2, err = data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v2.String(); str != "2" {
-		t.Errorf("Expected 2, got %s", str)
+	} else if num := v2.Int64(); num != 2 {
+		t.Errorf("Expected 2, got %v (%v)", num, v2)
 	}
 
 	largeValue, err := ctx.Create(int(500))
@@ -214,8 +321,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v4, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v4.String(); str != "244" {
-		t.Errorf("Expected 244, got %s", str)
+	} else if num := v4.Int64(); num != 244 {
+		t.Errorf("Expected 244, got %v (%v)", num, v4)
 	}
 
 	negativeValue, err := ctx.Create(int(-55))
@@ -228,8 +335,8 @@ func TestReadAndWriteIndexFromArrayBuffer(t *testing.T) {
 	v5, err := data.GetIndex(2)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v5.String(); str != "201" {
-		t.Errorf("Expected 201, got %s", str)
+	} else if num := v5.Int64(); num != 201 {
+		t.Errorf("Expected 201, got %v (%v)", num, v5)
 	}
 }
 
@@ -244,8 +351,8 @@ func TestReadAndWriteIndexFromArray(t *testing.T) {
 	v, err := val.GetIndex(1)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v.String(); str != "2" {
-		t.Errorf("Wrong value, expected 2, got %s", str)
+	} else if num := v.Int64(); num != 2 {
+		t.Errorf("Wrong value, expected 2, got %v (%v)", num, v)
 	}
 
 	v2, err := val.GetIndex(17)
@@ -259,8 +366,8 @@ func TestReadAndWriteIndexFromArray(t *testing.T) {
 	v2, err = val.GetIndex(17)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := v2.String(); str != "2" {
-		t.Errorf("Expected 2, got %s", str)
+	} else if num := v2.Int64(); num != 2 {
+		t.Errorf("Expected 2, got %v (%v)", num, v2)
 	}
 }
 
@@ -314,8 +421,8 @@ func TestSetField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 }
 
@@ -340,8 +447,8 @@ func TestRunningCodeInContextAfterThrowingError(t *testing.T) {
 		t.Fatal("Expected it to work, but got:", err)
 	}
 
-	if str := res.String(); str != "11" {
-		t.Errorf("Expected 11, got: %q", str)
+	if num := res.Int64(); num != 11 {
+		t.Errorf("Expected 11, got: %v (%v)", num, res)
 	}
 }
 
@@ -402,8 +509,8 @@ func TestCallFunctionWithExplicitThis(t *testing.T) {
 	res, err := add.Call(this, one, two)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "6" {
-		t.Errorf("Expected 6, got %q", str)
+	} else if num := res.Int64(); num != 6 {
+		t.Errorf("Expected 6, got %v (%v)", num, res)
 	}
 }
 
@@ -417,8 +524,8 @@ func TestCallFunctionWithGlobalScope(t *testing.T) {
 	res, err := add.Call(nil, one, two)
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "7" {
-		t.Errorf("Expected 7, got %q", str)
+	} else if num := res.Int64(); num != 7 {
+		t.Errorf("Expected 7, got %v (%v)", num, res)
 	}
 }
 
@@ -445,8 +552,8 @@ func TestNewFunction(t *testing.T) {
 	res, err := obj.Get("x")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "1" {
-		t.Errorf("Expected 1, got %q", str)
+	} else if num := res.Int64(); num != 1 {
+		t.Errorf("Expected 1, got %v (%v)", num, res)
 	}
 }
 
@@ -475,8 +582,8 @@ func TestNewFunctionWithArgs(t *testing.T) {
 	res, err := obj.Get("x")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	} else if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 }
 
@@ -518,8 +625,8 @@ func TestBind(t *testing.T) {
 	`, "somefile.js")
 	if err != nil {
 		t.Fatal(err)
-	} else if str := res.String(); str != "3" {
-		t.Errorf("Expected 3, got %q", str)
+	} else if num := res.Int64(); num != 3 {
+		t.Errorf("Expected 3, got %v (%v)", num, res)
 	}
 
 	expectedLoc = Loc{"", "", 0, 0} // empty when called directly from Go
@@ -671,8 +778,8 @@ func TestEs6Destructuring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if str := bar.String(); str != "6" {
-		t.Errorf("Expected 6, got %q", str)
+	if num := bar.Int64(); num != 6 {
+		t.Errorf("Expected 6, got %v (%v)", num, bar)
 	}
 }
 
@@ -772,6 +879,8 @@ func TestCreateSimple(t *testing.T) {
 
 	callback := func(CallbackArgs) (*Value, error) { return nil, nil }
 
+	tm := time.Date(2018, 5, 8, 3, 4, 5, 17, time.Local)
+
 	var testcases = []struct {
 		val interface{}
 		str string
@@ -788,6 +897,8 @@ func TestCreateSimple(t *testing.T) {
 			Bar bool
 		}{3, true}, "[object Object]"},
 		{[]interface{}{1, true, "three"}, "1,true,three"},
+		{tm, tm.Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")},
+		{&tm, tm.Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")},
 	}
 
 	for i, test := range testcases {
@@ -1244,5 +1355,162 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 		t.Errorf("Expected err to be nil since we ignore unhandled promise rejections. "+
 			"In the future, hopefully we'll handle these better -- in fact, maybe err "+
 			"is not-nil right now because you fixed that!  Got err = %v", err)
+	}
+}
+
+func TestValueKind(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	// WASM: This wasm code corresponds to the WAT:
+	//   (module
+	//      (func $add (param $x i32) (param $y i32) (result i32)
+	//          (i32.add (get_local $x) (get_local $y)))
+	//      (export "add" $add))
+	// That exports an "add(a,b int32) int32" function.
+	const wasmCode = `
+		new Uint8Array([0,97,115,109,1,0,0,0,1,135,128,128,128,0,1,96,2,127,127,1,127,3,130,128,128,
+			128,0,1,0,6,129,128,128,128,0,0,7,135,128,128,128,0,1,3,97,100,100,0,0,10,141,128,128,128,
+			0,1,135,128,128,128,0,0,32,0,32,1,106,11])`
+
+	const wasmModule = `new WebAssembly.Module(` + wasmCode + `)`
+
+	toTest := map[string]kindMask{
+		`undefined`:                        mask(KindUndefined),
+		`null`:                             mask(KindNull),
+		`"test"`:                           unionKindString,
+		`Symbol("test")`:                   unionKindSymbol,
+		`(function(){})`:                   unionKindFunction,
+		`[]`:                               unionKindArray,
+		`new Object()`:                     mask(KindObject),
+		`true`:                             mask(KindBoolean),
+		`false`:                            mask(KindBoolean),
+		`1`:                                mask(KindNumber, KindInt32, KindUint32),
+		`new Date()`:                       unionKindDate,
+		`(function(){return arguments})()`: unionKindArgumentsObject,
+		`new Boolean`:                      unionKindBooleanObject,
+		`new Number`:                       unionKindNumberObject,
+		`new String`:                       unionKindStringObject,
+		`new Object(Symbol("test"))`:       unionKindSymbolObject,
+		`/regexp/`:                         unionKindRegExp,
+		`new Promise((res, rjt)=>{})`:      unionKindPromise,
+		`new Map()`:                        unionKindMap,
+		`new Set()`:                        unionKindSet,
+		`new ArrayBuffer(0)`:               unionKindArrayBuffer,
+		`new Uint8Array(0)`:                unionKindUint8Array,
+		`new Uint8ClampedArray(0)`:         unionKindUint8ClampedArray,
+		`new Int8Array(0)`:                 unionKindInt8Array,
+		`new Uint16Array(0)`:               unionKindUint16Array,
+		`new Int16Array(0)`:                unionKindInt16Array,
+		`new Uint32Array(0)`:               unionKindUint32Array,
+		`new Int32Array(0)`:                unionKindInt32Array,
+		`new Float32Array(0)`:              unionKindFloat32Array,
+		`new Float64Array(0)`:              unionKindFloat64Array,
+		`new DataView(new ArrayBuffer(0))`: unionKindDataView,
+		`new SharedArrayBuffer(0)`:         unionKindSharedArrayBuffer,
+		`new Proxy({}, {})`:                unionKindProxy,
+		`new WeakMap`:                      unionKindWeakMap,
+		`new WeakSet`:                      unionKindWeakSet,
+		`(async function(){})`:             unionKindAsyncFunction,
+		`(function* (){})`:                 unionKindGeneratorFunction,
+		`function* gen(){}; gen()`:         unionKindGeneratorObject,
+		`new Map()[Symbol.iterator]()`:     unionKindMapIterator,
+		`new Set()[Symbol.iterator]()`:     unionKindSetIterator,
+		`new EvalError`:                    unionKindNativeError,
+		wasmModule:                         unionKindWebAssemblyCompiledModule,
+
+		// TODO!
+		// ``: KindExternal,
+	}
+
+	for script, kindMask := range toTest {
+		v, err := ctx.Eval(script, "kind_test.js")
+		if err != nil {
+			t.Errorf("%#q: failed: %v", script, err)
+		} else if v.kindMask != kindMask {
+			t.Errorf("%#q: expected result to be %q, but got %q", script, kindMask, v.kindMask)
+		}
+	}
+}
+
+func TestDate(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	res, err := ctx.Eval(`new Date("2018-05-08T08:16:46.918Z")`, "date.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tm, err := res.Date()
+	if err != nil {
+		t.Error(err)
+	} else if tm.UnixNano() != 1525767406918*1e6 {
+		t.Errorf("Wrong date: %q", tm)
+	}
+}
+
+func TestPromise(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	// Pending
+	v, err := ctx.Eval(`new Promise((resolve, reject)=>{})`, "pending-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStatePending {
+		t.Errorf("Expected promise to be pending, but got %v", state)
+	} else if result != nil {
+		t.Errorf("Expected nil result since it's pending, but got %v", result)
+	}
+
+	// Resolved
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{resolve(42)})`, "resolved-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStateResolved {
+		t.Errorf("Expected promise to be resolved, but got %v", state)
+	} else if result == nil {
+		t.Errorf("Expected a result since it's resolved, but got nil")
+	} else if !result.IsKind(KindNumber) {
+		t.Errorf("Expected the result to be a number, but it's: %v (%v)", result.kindMask, result)
+	} else if result.Int64() != 42 {
+		t.Errorf("Expected the result to be 42, but got %v", result)
+	}
+
+	// Rejected
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{reject(new Error("nope"))})`, "rejected-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStateRejected {
+		t.Errorf("Expected promise to be rejected, but got %v", state)
+	} else if result == nil {
+		t.Errorf("Expected an error result since it's rejected, but got nil")
+	} else if !result.IsKind(KindNativeError) {
+		t.Errorf("Expected the result to be an error, but it's: %v (%v)", result.kindMask, result)
+	} else if result.String() != `Error: nope` {
+		t.Errorf("Expected the error message to be 'nope', but got %#q", result)
+	}
+
+	// Not a promise
+	v, err = ctx.Eval(`new Error('x')`, "not-a-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err == nil {
+		t.Errorf("Expected an error, but got nil and state=%#v result=%#v", state, result)
 	}
 }
