@@ -1449,3 +1449,68 @@ func TestDate(t *testing.T) {
 		t.Errorf("Wrong date: %q", tm)
 	}
 }
+
+func TestPromise(t *testing.T) {
+	t.Parallel()
+	ctx := NewIsolate().NewContext()
+
+	// Pending
+	v, err := ctx.Eval(`new Promise((resolve, reject)=>{})`, "pending-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStatePending {
+		t.Errorf("Expected promise to be pending, but got %v", state)
+	} else if result != nil {
+		t.Errorf("Expected nil result since it's pending, but got %v", result)
+	}
+
+	// Resolved
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{resolve(42)})`, "resolved-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStateResolved {
+		t.Errorf("Expected promise to be resolved, but got %v", state)
+	} else if result == nil {
+		t.Errorf("Expected a result since it's resolved, but got nil")
+	} else if !result.IsKind(KindNumber) {
+		t.Errorf("Expected the result to be a number, but it's: %v (%v)", result.kindMask, result)
+	} else if result.Int64() != 42 {
+		t.Errorf("Expected the result to be 42, but got %v", result)
+	}
+
+	// Rejected
+	v, err = ctx.Eval(`new Promise((resolve, reject)=>{reject(new Error("nope"))})`, "rejected-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err != nil {
+		t.Error(err)
+	} else if state != PromiseStateRejected {
+		t.Errorf("Expected promise to be rejected, but got %v", state)
+	} else if result == nil {
+		t.Errorf("Expected an error result since it's rejected, but got nil")
+	} else if !result.IsKind(KindNativeError) {
+		t.Errorf("Expected the result to be an error, but it's: %v (%v)", result.kindMask, result)
+	} else if result.String() != `Error: nope` {
+		t.Errorf("Expected the error message to be 'nope', but got %#q", result)
+	}
+
+	// Not a promise
+	v, err = ctx.Eval(`new Error('x')`, "not-a-promise.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if state, result, err := v.PromiseInfo(); err == nil {
+		t.Errorf("Expected an error, but got nil and state=%#v result=%#v", state, result)
+	}
+}

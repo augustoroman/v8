@@ -661,27 +661,21 @@ void v8_Isolate_LowMemoryNotification(IsolatePtr isolate_ptr) {
   isolate->LowMemoryNotification();
 }
 
-ValueTuple v8_Value_PromiseResult(ContextPtr ctxptr, PersistentValuePtr valueptr) {
+ValueTuple v8_Value_PromiseInfo(ContextPtr ctxptr, PersistentValuePtr valueptr,
+                               int* promise_state) {
   VALUE_SCOPE(ctxptr);
-
   v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
-  v8::Promise* prom = v8::Promise::Cast(*value);
-
-  if (prom->State() == v8::Promise::PromiseState::kPending) {
-    return (ValueTuple){nullptr, 0, DupString("Promise is pending")};
+  if (!value->IsPromise()) { // just in case
+    return (ValueTuple){nullptr, 0, DupString("Not a promise")};
   }
 
+  v8::Promise* prom = v8::Promise::Cast(*value);
+  *promise_state = prom->State();
+  if (prom->State() == v8::Promise::PromiseState::kPending) {
+    return (ValueTuple){nullptr, 0, nullptr};
+  }
   v8::Local<v8::Value> res = prom->Result();
   return (ValueTuple){new Value(isolate, res), v8_Value_KindsFromLocal(res), nullptr};
-}
-
-uint8_t v8_Value_PromiseState(ContextPtr ctxptr, PersistentValuePtr valueptr) {
-  VALUE_SCOPE(ctxptr);
-
-  v8::Local<v8::Value> value = static_cast<Value*>(valueptr)->Get(isolate);
-  v8::Promise* prom = v8::Promise::Cast(*value);
-
-  return prom->State();
 }
 
 } // extern "C"

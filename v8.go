@@ -72,6 +72,28 @@ var Version = struct{ Major, Minor, Build, Patch int }{
 	Patch: int(C.version.Patch),
 }
 
+// PromiseState defines the state of a promise: either pending, resolved, or
+// rejected. Promises that are pending have no result value yet. A promise that
+// is resolved has a result value, and a promise that is rejected has a result
+// value that is usually the error.
+type PromiseState uint8
+
+const (
+	PromiseStatePending PromiseState = iota
+	PromiseStateResolved
+	PromiseStateRejected
+	kNumPromiseStates
+)
+
+var promiseStateStrings = [kNumPromiseStates]string{"Pending", "Resolved", "Rejected"}
+
+func (s PromiseState) String() string {
+	if s < 0 || s >= kNumPromiseStates {
+		return fmt.Sprintf("InvalidPromiseState:%d", int(s))
+	}
+	return promiseStateStrings[s]
+}
+
 // Ensure that v8 is initialized exactly once on first use.
 var v8_init_once sync.Once
 
@@ -346,6 +368,21 @@ func (v *Value) Date() (time.Time, error) {
 	sec := msec / 1000
 	nsec := (msec % 1000) * 1e6
 	return time.Unix(sec, nsec), nil
+}
+
+// PromiseInfo will return information about the promise if this value's
+// underlying kind is KindPromise, otherwise it will return an error. If there
+// is no error, then the returned value will depend on the promise state:
+//   pending: nil
+//   fulfilled: the value of the promise
+//   rejected: the rejected result, usually a JS error
+func (v *Value) PromiseInfo() (PromiseState, *Value, error) {
+	if !v.IsKind(KindPromise) {
+		return 0, nil, errors.New("Not a promise")
+	}
+	var state C.int
+	val, err := v.ctx.split(C.v8_Value_PromiseInfo(v.ctx.ptr, v.ptr, &state))
+	return PromiseState(state), val, err
 }
 
 // String returns the string representation of the value using the ToString()

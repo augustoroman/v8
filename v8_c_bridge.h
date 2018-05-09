@@ -159,8 +159,6 @@ extern Error       v8_Value_Set(ContextPtr ctx, PersistentValuePtr value,
 extern ValueTuple  v8_Value_GetIdx(ContextPtr ctx, PersistentValuePtr value, int idx);
 extern Error       v8_Value_SetIdx(ContextPtr ctx, PersistentValuePtr value,
                                    int idx, PersistentValuePtr new_value);
-extern ValueTuple  v8_Value_PromiseResult(ContextPtr ctx, PersistentValuePtr value);
-extern uint8_t     v8_Value_PromiseState(ContextPtr ctx, PersistentValuePtr value);
 extern ValueTuple  v8_Value_Call(ContextPtr ctx,
                                  PersistentValuePtr func,
                                  PersistentValuePtr self,
@@ -175,6 +173,9 @@ extern double    v8_Value_Float64(ContextPtr ctx, PersistentValuePtr value);
 extern int64_t   v8_Value_Int64(ContextPtr ctx, PersistentValuePtr value);
 extern int       v8_Value_Bool(ContextPtr ctx, PersistentValuePtr value);
 extern ByteArray v8_Value_Bytes(ContextPtr ctx, PersistentValuePtr value);
+
+extern ValueTuple v8_Value_PromiseInfo(ContextPtr ctx, PersistentValuePtr value,
+                                       int* promise_state);
 
 #ifdef __cplusplus
 }
