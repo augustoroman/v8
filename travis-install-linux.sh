@@ -18,4 +18,5 @@ popd
 ln -s ${V8_DIR}/vendor/v8/out/x64.release libv8
 ln -s ${V8_DIR}/vendor/v8/include include
 
-go install .
+go get ./...
+go test ./...
