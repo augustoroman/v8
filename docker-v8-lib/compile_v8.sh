@@ -1,12 +1,12 @@
 #!/bin/bash -ex
 
-: "${CHROMIUM_DIR:?CHROMIUM_DIR must be set}"
+: "${BUILD_DIR:?BUILD_DIR must be set}"
 
-cd $CHROMIUM_DIR
+cd $BUILD_DIR
 export PATH="$(pwd)/depot_tools:$PATH"
 cd v8
 
-gn gen out.gn/golib --args='
+gn gen out.gn/lib --args='
     target_cpu = "x64"
     is_debug = false
 
@@ -25,4 +25,4 @@ gn gen out.gn/golib --args='
     v8_enable_i18n_support = false
     v8_use_external_startup_data = false
     v8_enable_gdbjit = false'
-ninja -C out.gn/golib v8_libbase v8_libplatform v8_base v8_nosnapshot v8_libsampler v8_init v8_initializers
+ninja -C out.gn/lib v8_libbase v8_libplatform v8_base v8_nosnapshot v8_libsampler v8_init v8_initializers

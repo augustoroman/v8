@@ -1,34 +1,47 @@
+ARG V8_VERSION
+ARG V8_SOURCE_IMAGE=augustoroman/v8-lib
+
+# The v8 library & include files are taken from a pre-built docker image that
+# is expected to be called v8-lib. You can build that locally using:
+#   docker build --build-arg V8_VERSION=6.7.77 --tag augustoroman/v8-lib:6.7.77 docker-v8-lib/
+# or you can use a previously built image from:
+#   https://hub.docker.com/r/augustoroman/v8-lib/
+#
+# Once that is available, build this docker image using:
+#   docker build --build-arg V8_VERSION=6.7.77 -t gov8 .
+# and then run the interactive js using:
+#   docker run -it --rm gov8
+FROM ${V8_SOURCE_IMAGE}:${V8_VERSION} as v8
+
 FROM ubuntu:16.04
+# Install the basics we need to compile and install stuff.
+# In particular, we'll need curl for installing go and build-essential for
+# gcc.
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends ca-certificates curl build-essential git \
+    && rm -rf /var/lib/apt/lists/*
 
-# ------------ Install and build V8 ---------------------------------
-
-# Install the basics we need to compile and install stuff:
-RUN apt-get update -qq && apt-get install -y build-essential pkg-config git curl python
-
-# Now build V8
-ENV CHROMIUM_DIR=$HOME/chromium
-ENV V8_VERSION=6.7.77
-ADD docker-scripts/download_v8.sh download_v8.sh
-RUN ./download_v8.sh
-
-ADD docker-scripts/compile_v8.sh compile_v8.sh
-RUN ./compile_v8.sh
-
-# ------------ Install go ---------------------------------
-
-RUN curl -OJL https://dl.google.com/go/go1.10.1.linux-amd64.tar.gz
-RUN tar -C /usr/local -xzf go1.10.1.linux-amd64.tar.gz
+# Download and install go.
+RUN curl -JL https://dl.google.com/go/go1.10.2.linux-amd64.tar.gz \
+    | tar -C /usr/local -xz
 ENV PATH=$PATH:/usr/local/go/bin
 
 # ------------ Build and run v8 go tests ---------------------------------
-# Get the v8 code, similar to:
+# Copy the v8 code from the local disk, similar to:
 #   RUN go get github.com/augustoroman/v8 ||:
+# but this allows using any local modifications.
 ARG GO_V8_DIR=/root/go/src/github.com/augustoroman/v8/
-ADD *.go $GO_V8_DIR
-ADD symlink.sh $GO_V8_DIR
-ADD *.h $GO_V8_DIR
-ADD *.cc $GO_V8_DIR
+ADD *.go *.h *.cc $GO_V8_DIR
+ADD cmd $GO_V8_DIR/cmd/
+ADD v8console $GO_V8_DIR/v8console/
 
-# Install the library and run tests.
-ADD docker-scripts/install_golib.sh install_golib.sh
-RUN ./install_golib.sh
+# Copy the pre-compiled library & include files for the desired v8 version.
+COPY --from=v8 /v8/lib $GO_V8_DIR/libv8/
+COPY --from=v8 /v8/include $GO_V8_DIR/include/
+
+# Install the go code and run tests.
+WORKDIR $GO_V8_DIR
+RUN go get ./...
+RUN go test ./...
+
+ENTRYPOINT /root/go/bin/v8-runjs
