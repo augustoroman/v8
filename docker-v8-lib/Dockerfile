@@ -29,7 +29,7 @@ ADD compile_v8.sh compile_v8.sh
 RUN ./compile_v8.sh
 
 # Create a clean docker image with only the v8 libs.
-FROM scratch as lib
+FROM tianon/true as lib
 ARG BUILD_DIR=/build/chromium
 COPY --from=builder ${BUILD_DIR}/v8/out.gn/lib/obj/*.a /v8/lib/
 COPY --from=builder ${BUILD_DIR}/v8/include/ /v8/include/

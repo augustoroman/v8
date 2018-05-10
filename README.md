@@ -42,6 +42,42 @@ cd $GOPATH/src/github.com/augustoroman/v8
 go test
 ```
 
+# Using docker (linux only)
+
+For linux builds, you can use pre-built libraries or build your own.
+
+## Pre-built versions
+
+To use a pre-built library, select the desired v8 version from https://hub.docker.com/r/augustoroman/v8-lib/tags/ and then run:
+
+```bash
+# Select the v8 version to use:
+export V8_VERSION=6.7.77
+docker pull augustoroman/v8-lib:$V8_VERSION           # Download the image, updating if necessary.
+docker rm v8 ||:                                      # Cleanup from before if necessary.
+docker run --name v8 augustoroman/v8-lib:$V8_VERSION  # Run the image to provide access to the files.
+docker cp v8:/v8/include include/                     # Copy the include files.
+docker cp v8:/v8/lib libv8/                           # Copy the library fiels.
+```
+
+## Build your own via docker
+
+This takes a lot longer, but is still easy:
+
+```bash
+export V8_VERSION=6.7.77
+docker build --build-arg V8_VERSION=$V8_VERSION --tag augustoroman/v8-lib:$V8_VERSION docker-v8-lib/
+```
+
+and then extract the files as above:
+
+```bash
+docker rm v8 ||:                                      # Cleanup from before if necessary.
+docker run --name v8 augustoroman/v8-lib:$V8_VERSION  # Run the image to provide access to the files.
+docker cp v8:/v8/include include/                     # Copy the include files.
+docker cp v8:/v8/lib libv8/                           # Copy the library fiels.
+```
+
 # Building v8
 
 ## Prep
