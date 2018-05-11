@@ -7,5 +7,6 @@ cd $BUILD_DIR
 export PATH="$(pwd)/depot_tools:$PATH"
 cd v8
 
+get fetch origin ${V8_VERSION}
 git checkout ${V8_VERSION}
 gclient sync
