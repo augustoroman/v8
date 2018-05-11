@@ -28,6 +28,10 @@ RUN ./checkout_v8.sh
 ADD compile_v8.sh compile_v8.sh
 RUN ./compile_v8.sh
 
+# Some V8 versions produce thin archives by default.
+ADD fatten_archives.sh fatten_archives.sh
+RUN ./fatten_archives.sh
+
 # Create a clean docker image with only the v8 libs.
 FROM tianon/true as lib
 ARG BUILD_DIR=/build/chromium
