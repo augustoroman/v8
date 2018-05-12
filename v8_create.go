@@ -145,14 +145,20 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		keys := val.MapKeys()
 		sort.Sort(stringKeys(keys))
 		for _, key := range keys {
-			v, err := ctx.create(val.MapIndex(key))
+			toCreate := val.MapIndex(key)
+			if toCreate.Kind() == reflect.Interface {
+				toCreate = toCreate.Elem()
+			}
+			v, err := ctx.create(toCreate)
 			if err != nil {
 				return nil, fmt.Errorf("map key %q: %v", key.String(), err)
 			}
 			if err := ob.Set(key.String(), v); err != nil {
 				return nil, err
 			}
-			v.release()
+			if toCreate.Type() != valuePtrType {
+				v.release()
+			}
 		}
 		return ob, nil
 	case reflect.Struct:
@@ -190,14 +196,20 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 				unionKindArray,
 			)
 			for i := 0; i < val.Len(); i++ {
-				v, err := ctx.create(val.Index(i))
+				toCreate := val.Index(i)
+				if toCreate.Kind() == reflect.Interface {
+					toCreate = toCreate.Elem()
+				}
+				v, err := ctx.create(toCreate)
 				if err != nil {
 					return nil, fmt.Errorf("index %d: %v", i, err)
 				}
 				if err := ob.SetIndex(i, v); err != nil {
 					return nil, err
 				}
-				v.release()
+				if toCreate.Type() != valuePtrType {
+					v.release()
+				}
 			}
 			return ob, nil
 		}
@@ -236,14 +248,20 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 		}
 
 		v8Tags := strings.Split(f.Tag.Get("v8"), ",")
-		v, err := ctx.createWithTags(val.Field(i), v8Tags)
+		toCreate := val.Field(i)
+		// if toCreate.Kind() == reflect.Interface {
+		// 	toCreate = toCreate.Elem()
+		// }
+		v, err := ctx.createWithTags(toCreate, v8Tags)
 		if err != nil {
 			return fmt.Errorf("field %q: %v", f.Name, err)
 		}
 		if err := ob.Set(name, v); err != nil {
 			return err
 		}
-		v.release()
+		if toCreate.Type() != valuePtrType {
+			v.release()
+		}
 	}
 
 	// Also export any methods of the struct that match the callback type.
