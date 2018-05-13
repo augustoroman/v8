@@ -24,21 +24,8 @@
 extern "C" ValueTuple go_callback_handler(
     String id, CallerInfo info, int argc, ValueTuple* argv);
 
-class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
- public:
-  virtual void* Allocate(size_t length);
-  virtual void* AllocateUninitialized(size_t length);
-  virtual void Free(void* data, size_t);
-};
-void* ArrayBufferAllocator::Allocate(size_t length) {
-  void* data = AllocateUninitialized(length);
-  return data == nullptr ? data : memset(data, 0, length);
-}
-void* ArrayBufferAllocator::AllocateUninitialized(size_t length) { return malloc(length); }
-void ArrayBufferAllocator::Free(void* data, size_t) { free(data); }
-
 // We only need one, it's stateless.
-ArrayBufferAllocator allocator;
+auto allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 
 typedef struct {
   v8::Persistent<v8::Context> ptr;
@@ -194,7 +181,7 @@ StartupData v8_CreateSnapshotDataBlob(const char* js) {
 
 IsolatePtr v8_Isolate_New(StartupData startup_data) {
   v8::Isolate::CreateParams create_params;
-  create_params.array_buffer_allocator = &allocator;
+  create_params.array_buffer_allocator = allocator;
   if (startup_data.len > 0 && startup_data.ptr != nullptr) {
     v8::StartupData* data = new v8::StartupData;
     data->data = startup_data.ptr;
@@ -430,7 +417,6 @@ Error v8_Value_Set(ContextPtr ctxptr, PersistentValuePtr valueptr,
   v8::Local<v8::Object> object =
       maybeObject->ToObject(ctx).ToLocalChecked();
 
-
   Value* new_value = static_cast<Value*>(new_valueptr);
   v8::Local<v8::Value> new_value_local = new_value->Get(isolate);
   v8::Maybe<bool> res =
@@ -441,7 +427,6 @@ Error v8_Value_Set(ContextPtr ctxptr, PersistentValuePtr valueptr,
   } else if (!res.FromJust()) {
     return DupString("Something went wrong -- set failed.");
   }
-
   return (Error){nullptr, 0};
 }
 
