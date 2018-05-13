@@ -72,7 +72,8 @@ var timeType = reflect.TypeOf(time.Time{})
 //       Buf: new Uint8Array([1,2,3]).buffer
 //    }
 func (ctx *Context) Create(val interface{}) (*Value, error) {
-	return ctx.create(reflect.ValueOf(val))
+	v, _, err := ctx.create(reflect.ValueOf(val))
+	return v, err
 }
 
 func (ctx *Context) createVal(v C.ImmediateValue, kinds kindMask) *Value {
@@ -90,20 +91,22 @@ func getJsName(fieldName, jsonTag string) string {
 	return jsonName // explict name specified
 }
 
-func (ctx *Context) create(val reflect.Value) (*Value, error) {
+func (ctx *Context) create(val reflect.Value) (v *Value, allocated bool, err error) {
 	return ctx.createWithTags(val, []string{})
 }
 
-func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, error) {
+func (ctx *Context) createWithTags(val reflect.Value, tags []string) (v *Value, allocated bool, err error) {
 	if !val.IsValid() {
-		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, mask(KindUndefined)), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tUNDEFINED}, mask(KindUndefined)), true, nil
 	}
 
 	if val.Type() == valuePtrType {
-		return val.Interface().(*Value), nil
+		// This is the only time that we return an already-allocated Value, so
+		// allocated is false.
+		return val.Interface().(*Value), false, nil
 	} else if val.Type() == timeType {
 		msec := C.double(val.Interface().(time.Time).UnixNano()) / 1e6
-		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tDATE, Float64: msec}, unionKindDate), true, nil
 	}
 
 	switch val.Kind() {
@@ -112,52 +115,54 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 		if val.Bool() {
 			bval = 1
 		}
-		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, Bool: bval}, mask(KindBoolean)), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tBOOL, Bool: bval}, mask(KindBoolean)), true, nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64:
 		num := C.double(val.Convert(float64Type).Float())
-		return ctx.createVal(C.ImmediateValue{Type: C.tFLOAT64, Float64: num}, mask(KindNumber)), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tFLOAT64, Float64: num}, mask(KindNumber)), true, nil
 	case reflect.String:
 		gostr := val.String()
 		str := C.ByteArray{ptr: C.CString(gostr), len: C.int(len(gostr))}
 		defer C.free(unsafe.Pointer(str.ptr))
-		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Mem: str}, unionKindString), nil
+		return ctx.createVal(C.ImmediateValue{Type: C.tSTRING, Mem: str}, unionKindString), true, nil
 	case reflect.UnsafePointer, reflect.Uintptr:
-		return nil, fmt.Errorf("Uintptr not supported: %#v", val.Interface())
+		return nil, false, fmt.Errorf("Uintptr not supported: %#v", val.Interface())
 	case reflect.Complex64, reflect.Complex128:
-		return nil, fmt.Errorf("Complex not supported: %#v", val.Interface())
+		return nil, false, fmt.Errorf("Complex not supported: %#v", val.Interface())
 	case reflect.Chan:
-		return nil, fmt.Errorf("Chan not supported: %#v", val.Interface())
+		return nil, false, fmt.Errorf("Chan not supported: %#v", val.Interface())
 	case reflect.Func:
 		if val.Type().ConvertibleTo(callbackType) {
 			name := path.Base(runtime.FuncForPC(val.Pointer()).Name())
-			return ctx.Bind(name, val.Convert(callbackType).Interface().(Callback)), nil
+			return ctx.Bind(name, val.Convert(callbackType).Interface().(Callback)), true, nil
 		}
-		return nil, fmt.Errorf("Func not supported: %#v", val.Interface())
+		return nil, false, fmt.Errorf("Func not supported: %#v", val.Interface())
 	case reflect.Interface, reflect.Ptr:
 		return ctx.create(val.Elem())
 	case reflect.Map:
 		if val.Type().Key() != stringType {
-			return nil, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
+			return nil, false, fmt.Errorf("Map keys must be strings, %s not allowed", val.Type().Key())
 		}
 		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, mask(KindObject))
 		keys := val.MapKeys()
 		sort.Sort(stringKeys(keys))
 		for _, key := range keys {
-			v, err := ctx.create(val.MapIndex(key))
+			v, wasAllocated, err := ctx.create(val.MapIndex(key))
 			if err != nil {
-				return nil, fmt.Errorf("map key %q: %v", key.String(), err)
+				return nil, false, fmt.Errorf("map key %q: %v", key.String(), err)
 			}
 			if err := ob.Set(key.String(), v); err != nil {
-				return nil, err
+				return nil, false, err
 			}
-			v.release()
+			if wasAllocated {
+				v.release()
+			}
 		}
-		return ob, nil
+		return ob, true, nil
 	case reflect.Struct:
 		ob := ctx.createVal(C.ImmediateValue{Type: C.tOBJECT}, mask(KindObject))
-		return ob, ctx.writeStructFields(ob, val)
+		return ob, true, ctx.writeStructFields(ob, val)
 	case reflect.Array, reflect.Slice:
 		arrayBuffer := false
 		for _, tag := range tags {
@@ -180,7 +185,7 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 				},
 				unionKindArrayBuffer,
 			)
-			return ob, nil
+			return ob, true, nil
 		} else {
 			ob := ctx.createVal(
 				C.ImmediateValue{
@@ -190,16 +195,18 @@ func (ctx *Context) createWithTags(val reflect.Value, tags []string) (*Value, er
 				unionKindArray,
 			)
 			for i := 0; i < val.Len(); i++ {
-				v, err := ctx.create(val.Index(i))
+				v, wasAllocated, err := ctx.create(val.Index(i))
 				if err != nil {
-					return nil, fmt.Errorf("index %d: %v", i, err)
+					return nil, false, fmt.Errorf("index %d: %v", i, err)
 				}
 				if err := ob.SetIndex(i, v); err != nil {
-					return nil, err
+					return nil, false, err
 				}
-				v.release()
+				if wasAllocated {
+					v.release()
+				}
 			}
-			return ob, nil
+			return ob, true, nil
 		}
 	}
 	panic("Unknown kind!")
@@ -236,14 +243,16 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 		}
 
 		v8Tags := strings.Split(f.Tag.Get("v8"), ",")
-		v, err := ctx.createWithTags(val.Field(i), v8Tags)
+		v, wasAllocated, err := ctx.createWithTags(val.Field(i), v8Tags)
 		if err != nil {
 			return fmt.Errorf("field %q: %v", f.Name, err)
 		}
 		if err := ob.Set(name, v); err != nil {
 			return err
 		}
-		v.release()
+		if wasAllocated {
+			v.release()
+		}
 	}
 
 	// Also export any methods of the struct that match the callback type.
@@ -255,14 +264,16 @@ func (ctx *Context) writeStructFields(ob *Value, val reflect.Value) error {
 
 		m := val.Method(i)
 		if m.Type().ConvertibleTo(callbackType) {
-			v, err := ctx.create(m)
+			v, wasAllocated, err := ctx.create(m)
 			if err != nil {
 				return fmt.Errorf("method %q: %v", name, err)
 			}
 			if err := ob.Set(name, v); err != nil {
 				return err
 			}
-			v.release()
+			if wasAllocated {
+				v.release()
+			}
 		}
 	}
 	return nil

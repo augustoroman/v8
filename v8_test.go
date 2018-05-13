@@ -930,13 +930,16 @@ func TestCreateComplex(t *testing.T) {
 	zzz4 := &zzz3
 	zzz5 := &zzz4 // zzz5 is a *****Struct.  Make sure pointers work!
 
+	fn2 := ctx.Bind("fn2", fn)
+
 	val, err := ctx.Create([]Struct{
 		{"asdf", false, nil},
 		{"foo", true, map[string]interface{}{
-			"num":  123.123,
-			"fn":   fn,
-			"fn2":  ctx.Bind("fn2", fn),
-			"list": []float64{1, 2, 3},
+			"num":    123.123,
+			"fn":     fn,
+			"fn2":    fn2,
+			"list":   []float64{1, 2, 3},
+			"valArr": []*Value{fn2},
 		}},
 		{"*****Struct", false, zzz5},
 		{"bufbuf", false, struct {
@@ -945,9 +948,14 @@ func TestCreateComplex(t *testing.T) {
 		{"emptybuf", false, struct {
 			Data []byte `v8:"arraybuffer"`
 		}{[]byte{}}},
+		{"structWithValue", false, struct{ *Value }{fn2}},
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if fn2.ptr == nil {
+		t.Error("Create should not release *Values allocated prior to the call.")
 	}
 
 	ctx.Global().Set("mega", val)
