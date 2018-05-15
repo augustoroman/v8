@@ -23,6 +23,10 @@
 
 extern "C" ValueTuple go_callback_handler(
     String id, CallerInfo info, int argc, ValueTuple* argv);
+extern "C" void go_promise_rejected_callback(
+    int ctx_id, ValueTuple promise, int event, ValueTuple value);
+
+enum { kContextIdEmbedderIndex = 1 };
 
 // We only need one, it's stateless.
 auto allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -179,6 +183,28 @@ StartupData v8_CreateSnapshotDataBlob(const char* js) {
   return StartupData{data.data, data.raw_size};
 }
 
+void on_promise_rejected(v8::PromiseRejectMessage message) {
+  v8::Local<v8::Promise> promise = message.GetPromise();
+  int event = (int)(message.GetEvent());
+
+  // Get the isolate & context so we can pass the context id.
+  v8::Isolate* isolate = promise->GetIsolate();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
+  int ctx_id = context->GetEmbedderData(kContextIdEmbedderIndex)->Int32Value(context).ToChecked();
+
+  v8::Local<v8::Value> value = message.GetValue();
+  if (value.IsEmpty()) {
+    value = v8::Undefined(isolate);
+  }
+
+  go_promise_rejected_callback(
+    ctx_id,
+    (ValueTuple){new Value(isolate, promise), v8_Value_KindsFromLocal(promise), nullptr},
+    event,
+    (ValueTuple){new Value(isolate, value), v8_Value_KindsFromLocal(value), nullptr}
+  );
+}
+
 IsolatePtr v8_Isolate_New(StartupData startup_data) {
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = allocator;
@@ -188,9 +214,15 @@ IsolatePtr v8_Isolate_New(StartupData startup_data) {
     data->raw_size = startup_data.len;
     create_params.snapshot_blob = data;
   }
-  return static_cast<IsolatePtr>(v8::Isolate::New(create_params));
+  v8::Isolate* isolate = v8::Isolate::New(create_params);
+  // For now, we'll always call back into go when a promise is rejected even
+  // if there's no registered handler. We could be more efficient and ignore
+  // this, but (in theory) there should not be a large number of promise errors.
+  isolate->SetPromiseRejectCallback(on_promise_rejected);
+
+  return static_cast<IsolatePtr>(isolate);
 }
-ContextPtr v8_Isolate_NewContext(IsolatePtr isolate_ptr) {
+ContextPtr v8_Isolate_NewContext(IsolatePtr isolate_ptr, int32_t id) {
   ISOLATE_SCOPE(static_cast<v8::Isolate*>(isolate_ptr));
   v8::HandleScope handle_scope(isolate);
 
@@ -198,9 +230,13 @@ ContextPtr v8_Isolate_NewContext(IsolatePtr isolate_ptr) {
 
   v8::Local<v8::ObjectTemplate> globals = v8::ObjectTemplate::New(isolate);
 
+  v8::Local<v8::Context> context = v8::Context::New(isolate, nullptr, globals);
   Context* ctx = new Context;
-  ctx->ptr.Reset(isolate, v8::Context::New(isolate, nullptr, globals));
+  ctx->ptr.Reset(isolate, context);
   ctx->isolate = isolate;
+
+  context->SetEmbedderData(kContextIdEmbedderIndex, v8::Integer::New(isolate, id));
+
   return static_cast<ContextPtr>(ctx);
 }
 void v8_Isolate_Terminate(IsolatePtr isolate_ptr) {
@@ -512,8 +548,8 @@ ValueTuple v8_Value_Call(ContextPtr ctxptr,
 }
 
 ValueTuple v8_Value_New(ContextPtr ctxptr,
-                            PersistentValuePtr funcptr,
-                            int argc, PersistentValuePtr* argvptr) {
+                        PersistentValuePtr funcptr,
+                        int argc, PersistentValuePtr* argvptr) {
   VALUE_SCOPE(ctxptr);
 
   v8::TryCatch try_catch(isolate);

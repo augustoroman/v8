@@ -21,10 +21,12 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -146,12 +148,18 @@ func CreateSnapshot(js string) *Snapshot {
 // Isolate represents a single-threaded V8 engine instance.  It can run multiple
 // independent Contexts and V8 values can be freely shared between the Contexts,
 // however only one context will ever execute at a time.
-type Isolate struct{ ptr C.IsolatePtr }
+type Isolate struct {
+	ptr C.IsolatePtr
+	// PromiseErrorHandler is the callback when a promise error occurs (e.g. a
+	// promise is rejected but has no error handler). If this is nil, then
+	// DefaultPromiseErrorHandler is called.
+	PromiseErrorHandler PromiseErrorHandler
+}
 
 // NewIsolate creates a new V8 Isolate.
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
+	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0}), nil}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
@@ -160,27 +168,63 @@ func NewIsolate() *Isolate {
 // to initialize all Contexts created from this Isolate.
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(s.data)}
+	iso := &Isolate{C.v8_Isolate_New(s.data), nil}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
 
 // NewContext creates a new, clean V8 Context within this Isolate.
 func (i *Isolate) NewContext() *Context {
+	id := atomic.AddInt32(&nextContextId, 1)
+
 	ctx := &Context{
+		id:        id,
 		iso:       i,
-		ptr:       C.v8_Isolate_NewContext(i.ptr),
+		ptr:       C.v8_Isolate_NewContext(i.ptr, C.int(id)),
 		callbacks: map[int]callbackInfo{},
 	}
-
-	contextsMutex.Lock()
-	nextContextId++
-	ctx.id = nextContextId
-	contextsMutex.Unlock()
 
 	runtime.SetFinalizer(ctx, (*Context).release)
 
 	return ctx
+}
+
+// DefaultPromiseErrorHandler is the global handler called when a promise error
+// occurs but the associated isolate has no
+var DefaultPromiseErrorHandler = func(info PromiseErrorInfo) {
+	log.Printf("Unhandled promise error %q: %v", info.Event, info.Value)
+}
+
+// PromiseErrorHandler is the signature for callback notifications when an error
+// occurs within the JS runtime handling a promise.
+type PromiseErrorHandler func(PromiseErrorInfo)
+
+// PromiseErrorInfo is the information provided to a PromiseErrorHandler when
+// an unhandled promise rejection notification occurs.
+type PromiseErrorInfo struct {
+	Promise *Value
+	Event   PromiseErrorType
+	Value   *Value
+}
+
+// PromiseErrorType defines the error that caused the PromiseErrorHandler.
+type PromiseErrorType uint8
+
+const (
+	// A promise was rejected that did not have a .catch error handler.
+	PromiseRejectWithNoHandler PromiseErrorType = 0
+	// A handler (.then or .catch) was added to a promise that was already
+	// rejected.
+	PromiseHandlerAddedAfterReject PromiseErrorType = 1
+)
+
+var promiseErrorTypeStrings = [...]string{"RejectWithNoHandler", "HandlerAddedAfterReject"}
+
+func (p PromiseErrorType) String() string {
+	if p == 0 || p == 1 {
+		return promiseErrorTypeStrings[p]
+	}
+	return fmt.Sprintf("UnknownPromiseErrorType:%d", uint8(p))
 }
 
 // Terminate will interrupt all operation in this Isolate, interrupting any
@@ -207,7 +251,7 @@ func (i *Isolate) convertErrorMsg(error_msg C.Error) error {
 // only within that context unless the Go code explicitly moves values from one
 // context to another.
 type Context struct {
-	id  int
+	id  int32
 	iso *Isolate
 	ptr C.ContextPtr
 
@@ -516,9 +560,9 @@ func (v *Value) MarshalJSON() ([]byte, error) {
 // we call into V8 and remove when we're done. Specifically, we'll use a ref
 // count just in case somebody gets cute and calls back into V8 from a callback.
 //
-var contexts = map[int]*refCount{}
+var contexts = map[int32]*refCount{}
 var contextsMutex sync.RWMutex
-var nextContextId int
+var nextContextId int32
 
 type refCount struct {
 	ptr   *Context
@@ -546,6 +590,37 @@ func decRef(ctx *Context) {
 	contextsMutex.Unlock()
 }
 
+//export go_promise_rejected_callback
+func go_promise_rejected_callback(
+	ctxId C.int,
+	c_promise C.ValueTuple, // never has an Error
+	c_event C.int,
+	c_value C.ValueTuple, // never has an Error
+) {
+	event := PromiseErrorType(c_event)
+
+	contextsMutex.RLock()
+	ref := contexts[int32(ctxId)]
+	contextsMutex.RUnlock()
+	if ref == nil {
+		// This should never happen, but we'll log an error (instead of
+		// panicking) since this is not a fatal condition.
+		log.Printf("Missing context pointer during unhandled promise rejection "+
+			"callback for context #%d (event: %s)", int(ctxId), event)
+		return
+	}
+	ctx := ref.ptr
+
+	promise := ctx.newValue(c_promise.Value, c_promise.Kinds)
+	value := ctx.newValue(c_value.Value, c_value.Kinds)
+
+	if ctx.iso.PromiseErrorHandler != nil {
+		ctx.iso.PromiseErrorHandler(PromiseErrorInfo{promise, event, value})
+	} else {
+		DefaultPromiseErrorHandler(PromiseErrorInfo{promise, event, value})
+	}
+}
+
 //export go_callback_handler
 func go_callback_handler(
 	cbIdStr C.String,
@@ -566,13 +641,14 @@ func go_callback_handler(
 	callbackId, _ := strconv.Atoi(parts[1])
 
 	contextsMutex.RLock()
-	ref := contexts[ctxId]
+	ref := contexts[int32(ctxId)]
+	contextsMutex.RUnlock()
 	if ref == nil {
+		// This should never happen. We can't reasonably recover from this.
 		panic(fmt.Errorf(
 			"Missing context pointer during callback for context #%d", ctxId))
 	}
 	ctx := ref.ptr
-	contextsMutex.RUnlock()
 
 	info := ctx.callbacks[int(callbackId)]
 	if info.Callback == nil {

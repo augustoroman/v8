@@ -36,53 +36,16 @@ typedef struct {
 // NOTE! These values must exactly match the values in kinds.go. Any mismatch
 // will cause kinds to be misreported.
 typedef enum {
-    kUndefined = 0,
-    kNull,
-    kName,
-    kString,
-    kSymbol,
-    kFunction,
-    kArray,
-    kObject,
-    kBoolean,
-    kNumber,
-    kExternal,
-    kInt32,
-    kUint32,
-    kDate,
-    kArgumentsObject,
-    kBooleanObject,
-    kNumberObject,
-    kStringObject,
-    kSymbolObject,
-    kNativeError,
-    kRegExp,
-    kAsyncFunction,
-    kGeneratorFunction,
-    kGeneratorObject,
-    kPromise,
-    kMap,
-    kSet,
-    kMapIterator,
-    kSetIterator,
-    kWeakMap,
-    kWeakSet,
-    kArrayBuffer,
-    kArrayBufferView,
-    kTypedArray,
-    kUint8Array,
-    kUint8ClampedArray,
-    kInt8Array,
-    kUint16Array,
-    kInt16Array,
-    kUint32Array,
-    kInt32Array,
-    kFloat32Array,
-    kFloat64Array,
-    kDataView,
-    kSharedArrayBuffer,
-    kProxy,
+    kUndefined = 0, kNull, kName, kString, kSymbol, kFunction, kArray, kObject,
+    kBoolean, kNumber, kExternal, kInt32, kUint32, kDate, kArgumentsObject,
+    kBooleanObject, kNumberObject, kStringObject, kSymbolObject, kNativeError,
+    kRegExp, kAsyncFunction, kGeneratorFunction, kGeneratorObject, kPromise,
+    kMap, kSet, kMapIterator, kSetIterator, kWeakMap, kWeakSet, kArrayBuffer,
+    kArrayBufferView, kTypedArray, kUint8Array, kUint8ClampedArray, kInt8Array,
+    kUint16Array, kInt16Array, kUint32Array, kInt32Array, kFloat32Array,
+    kFloat64Array, kDataView, kSharedArrayBuffer, kProxy,
     kWebAssemblyCompiledModule,
+
     kNumKinds,
 } Kind;
 
@@ -107,15 +70,13 @@ typedef struct {
 typedef struct { int Major, Minor, Build, Patch; } Version;
 extern Version version;
 
-// typedef unsigned int uint32_t;
-
 // v8_init must be called once before anything else.
 extern void v8_init();
 
 extern StartupData v8_CreateSnapshotDataBlob(const char* js);
 
 extern IsolatePtr v8_Isolate_New(StartupData data);
-extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate);
+extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate, int32_t id);
 extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
 

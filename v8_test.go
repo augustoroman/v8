@@ -1328,11 +1328,16 @@ func runGcUntilReceivedOrTimedOut(signal <-chan bool, timeout time.Duration) boo
 	}
 }
 
-// This is bad, and should be fixed! See https://github.com/augustoroman/v8/issues/21
 func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 	t.Parallel()
 	ctx := NewIsolate().NewContext()
+
 	var logs []string
+
+	ctx.iso.PromiseErrorHandler = func(info PromiseErrorInfo) {
+		logs = append(logs, fmt.Sprintf("promise error: %v %v", info.Event, info.Value))
+	}
+
 	ctx.Global().Set("log", ctx.Bind("log", func(in CallbackArgs) (*Value, error) {
 		logs = append(logs, in.Arg(0).String())
 		return nil, nil
@@ -1345,9 +1350,14 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 	`, `test.js`)
 
 	expectedLogs := []string{
-		"start",
-		"reject:'err'",
-		"done",
+		`start`,
+		`reject:'err'`,
+		// TODO(aroman) These next two should be suppressed -- they don't show
+		// up in nodejs or chrome.
+		`promise error: RejectWithNoHandler err`,
+		`promise error: HandlerAddedAfterReject undefined`,
+		`done`,
+		`promise error: RejectWithNoHandler err`,
 	}
 
 	if !reflect.DeepEqual(logs, expectedLogs) {
@@ -1495,6 +1505,8 @@ func TestPromise(t *testing.T) {
 	}
 
 	// Rejected
+	var gotRejectedError bool
+	ctx.iso.PromiseErrorHandler = func(PromiseErrorInfo) { gotRejectedError = true }
 	v, err = ctx.Eval(`new Promise((resolve, reject)=>{reject(new Error("nope"))})`, "rejected-promise.js")
 	if err != nil {
 		t.Fatal(err)
@@ -1510,6 +1522,10 @@ func TestPromise(t *testing.T) {
 		t.Errorf("Expected the result to be an error, but it's: %v (%v)", result.kindMask, result)
 	} else if result.String() != `Error: nope` {
 		t.Errorf("Expected the error message to be 'nope', but got %#q", result)
+	}
+
+	if !gotRejectedError {
+		t.Errorf("Expected to be notified of an unhandled promise rejection, but didn't.")
 	}
 
 	// Not a promise
