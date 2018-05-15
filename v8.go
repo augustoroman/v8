@@ -180,7 +180,7 @@ func (i *Isolate) NewContext() *Context {
 	ctx := &Context{
 		id:        id,
 		iso:       i,
-		ptr:       C.v8_Isolate_NewContext(i.ptr, C.int(id)),
+		ptr:       C.v8_Isolate_NewContext(i.ptr, C.int32_t(id)),
 		callbacks: map[int]callbackInfo{},
 	}
 
