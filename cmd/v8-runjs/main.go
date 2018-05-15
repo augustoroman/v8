@@ -45,6 +45,7 @@ func main() {
 
 	if flag.NArg() == 0 {
 		s := liner.NewLiner()
+		s.SetMultiLineMode(true)
 		defer s.Close()
 		for {
 			jscode, err := s.Prompt("> ")
