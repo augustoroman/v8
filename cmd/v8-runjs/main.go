@@ -15,11 +15,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/augustoroman/v8"
 	"github.com/augustoroman/v8/v8console"
@@ -35,6 +38,22 @@ func main() {
 	flag.Parse()
 	ctx := v8.NewIsolate().NewContext()
 	v8console.Config{"", os.Stdout, os.Stderr, true}.Inject(ctx)
+
+	var outstanding_tasks sync.WaitGroup
+
+	ctx.Global().Set("sleep", ctx.Bind("sleep", func(args v8.CallbackArgs) (*v8.Value, error) {
+		if len(args.Args) == 0 {
+			return nil, errors.New("sleep requires duration parameter (in msec)")
+		}
+		dt := time.Duration(args.Arg(0).Float64() * float64(time.Millisecond))
+		promise, _ := NewPromise(ctx)
+		outstanding_tasks.Add(1)
+		time.AfterFunc(dt, func() {
+			promise.Resolve.Call(nil, args.Arg(0))
+			outstanding_tasks.Done()
+		})
+		return promise.Value, nil
+	}))
 
 	for _, filename := range flag.Args() {
 		data, err := ioutil.ReadFile(filename)
@@ -62,10 +81,47 @@ func main() {
 			}
 		}
 	}
+
+	// Wait for any outstanding promises to complete before exiting. Note that
+	// this isn't quite correct: if a promise completes but, while computing
+	// its resolution it creates _another_ promise, this will fail. We really
+	// want a loop that waits until the semaphore has hit zero, but WaitGroup
+	// doesn't expose the sempahore value.
+	outstanding_tasks.Wait()
+	ctx.Eval("", "done.js")
 }
 
 func failOnError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// Helper to create and return a promise. This is non-optimal for several
+// reasons:
+//   - It's slow because it makes a bunch of cgo calls to construct the value.
+//   - Every new promise binds a new function callback that is never released,
+//     meaning that this is basically a memory leak.
+//
+// A better solution would be to allow directly accessing the
+// v8::Promise::Resolver interface directly, so somehow you could create a
+// promise and directly resolve() or reject() values.
+//
+// Also, fix the callback leak: https://github.com/augustoroman/v8/issues/29
+
+type Promise struct{ Value, Resolve, Reject *v8.Value }
+
+func NewPromise(ctx *v8.Context) (*Promise, error) {
+	promise_class, err := ctx.Global().Get("Promise")
+	if err != nil {
+		return nil, fmt.Errorf("Cannot get Promise class: %v", err)
+	}
+	var p Promise
+	p.Value, err = promise_class.New(ctx.Bind(
+		"promise_handler",
+		func(args v8.CallbackArgs) (*v8.Value, error) {
+			p.Resolve, p.Reject = args.Arg(0), args.Arg(1)
+			return nil, nil
+		}))
+	return &p, err
 }
