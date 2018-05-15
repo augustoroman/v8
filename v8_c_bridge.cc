@@ -205,6 +205,9 @@ void on_promise_rejected(v8::PromiseRejectMessage message) {
   );
 }
 
+void ignore_promise_rejected(v8::PromiseRejectMessage message) {
+}
+
 IsolatePtr v8_Isolate_New(StartupData startup_data) {
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = allocator;
@@ -219,6 +222,7 @@ IsolatePtr v8_Isolate_New(StartupData startup_data) {
   // if there's no registered handler. We could be more efficient and ignore
   // this, but (in theory) there should not be a large number of promise errors.
   isolate->SetPromiseRejectCallback(on_promise_rejected);
+  isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
 
   return static_cast<IsolatePtr>(isolate);
 }
@@ -274,7 +278,10 @@ ValueTuple v8_Context_Run(ContextPtr ctxptr, const char* code, const char* filen
     return res;
   }
 
+  isolate->SetPromiseRejectCallback(ignore_promise_rejected);
   v8::Local<v8::Value> result = script->Run();
+  isolate->SetPromiseRejectCallback(on_promise_rejected);
+  isolate->RunMicrotasks();
 
   if (result.IsEmpty()) {
     res.error_msg = DupString(report_exception(isolate, ctx->ptr.Get(isolate), try_catch));

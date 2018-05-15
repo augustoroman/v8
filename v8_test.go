@@ -1352,10 +1352,6 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 	expectedLogs := []string{
 		`start`,
 		`reject:'err'`,
-		// TODO(aroman) These next two should be suppressed -- they don't show
-		// up in nodejs or chrome.
-		`promise error: RejectWithNoHandler err`,
-		`promise error: HandlerAddedAfterReject undefined`,
 		`done`,
 		`promise error: RejectWithNoHandler err`,
 	}
@@ -1373,6 +1369,23 @@ func TestMicrotasksIgnoreUnhandledPromiseRejection(t *testing.T) {
 		t.Errorf("Expected err to be nil since we ignore unhandled promise rejections. "+
 			"In the future, hopefully we'll handle these better -- in fact, maybe err "+
 			"is not-nil right now because you fixed that!  Got err = %v", err)
+	}
+
+	// Verify that we don't get unhandled promise errors if we immediately
+	// catch the rejected promise.
+	logs = nil
+	ctx.Eval(`
+		log('start');
+		Promise.reject('err').catch(e => log('catch'));
+		log('done');
+	`, `test.js`)
+	expectedLogs = []string{
+		`start`,
+		`done`,
+		`catch`,
+	}
+	if !reflect.DeepEqual(logs, expectedLogs) {
+		t.Errorf("Wrong logs.\nGot: %#q\nExp: %#q", logs, expectedLogs)
 	}
 }
 
@@ -1487,7 +1500,7 @@ func TestPromise(t *testing.T) {
 	}
 
 	// Resolved
-	v, err = ctx.Eval(`new Promise((resolve, reject)=>{resolve(42)})`, "resolved-promise.js")
+	v, err = ctx.Eval(`Promise.resolve(42)`, "resolved-promise.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1507,7 +1520,7 @@ func TestPromise(t *testing.T) {
 	// Rejected
 	var gotRejectedError bool
 	ctx.iso.PromiseErrorHandler = func(PromiseErrorInfo) { gotRejectedError = true }
-	v, err = ctx.Eval(`new Promise((resolve, reject)=>{reject(new Error("nope"))})`, "rejected-promise.js")
+	v, err = ctx.Eval(`Promise.reject(new Error('nope'))`, "rejected-promise.js")
 	if err != nil {
 		t.Fatal(err)
 	}
