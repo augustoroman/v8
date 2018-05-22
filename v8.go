@@ -146,12 +146,16 @@ func CreateSnapshot(js string) *Snapshot {
 // Isolate represents a single-threaded V8 engine instance.  It can run multiple
 // independent Contexts and V8 values can be freely shared between the Contexts,
 // however only one context will ever execute at a time.
-type Isolate struct{ ptr C.IsolatePtr }
+type Isolate struct {
+	ptr      C.IsolatePtr
+	lock     unsafe.Pointer
+	numlocks int
+}
 
 // NewIsolate creates a new V8 Isolate.
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
+	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0}), nil, 0}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
@@ -160,7 +164,7 @@ func NewIsolate() *Isolate {
 // to initialize all Contexts created from this Isolate.
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(s.data)}
+	iso := &Isolate{C.v8_Isolate_New(s.data), nil, 0}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
@@ -200,6 +204,22 @@ func (i *Isolate) convertErrorMsg(error_msg C.Error) error {
 	err := errors.New(C.GoStringN(error_msg.ptr, error_msg.len))
 	C.free(unsafe.Pointer(error_msg.ptr))
 	return err
+}
+
+func (i *Isolate) Lock() {
+	if i.numlocks == 0 {
+		runtime.LockOSThread()
+		i.lock = C.v8_Isolate_Lock(i.ptr)
+	}
+	i.numlocks++
+}
+func (i *Isolate) Unlock() {
+	i.numlocks--
+	if i.numlocks == 0 {
+		C.v8_Isolate_Unlock(i.lock)
+		i.lock = nil
+		runtime.UnlockOSThread()
+	}
 }
 
 // Context is a sandboxed js environment with its own set of built-in objects

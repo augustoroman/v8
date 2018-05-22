@@ -214,6 +214,15 @@ void v8_Isolate_Release(IsolatePtr isolate_ptr) {
   v8::Isolate* isolate = static_cast<v8::Isolate*>(isolate_ptr);
   isolate->Dispose();
 }
+void* v8_Isolate_Lock(IsolatePtr isolate_ptr) {
+  v8::Isolate* isolate = static_cast<v8::Isolate*>(isolate_ptr);                                                               \
+  v8::Locker *locker = new v8::Locker(isolate);
+  return static_cast<void*>(locker);
+}
+void v8_Isolate_Unlock(void* lockptr) {
+  v8::Locker *locker = static_cast<v8::Locker*>(lockptr);
+  delete(locker);
+}
 
 ValueTuple v8_Context_Run(ContextPtr ctxptr, const char* code, const char* filename) {
   Context* ctx = static_cast<Context*>(ctxptr);

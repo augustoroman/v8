@@ -119,6 +119,9 @@ extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate);
 extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
 
+extern void* v8_Isolate_Lock(IsolatePtr isolate_ptr);
+extern void  v8_Isolate_Unlock(void* lockptr);
+
 extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
 extern void                 v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
 
