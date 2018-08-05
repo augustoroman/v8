@@ -103,6 +103,7 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export PATH=$PATH:$V8_BUILD/depot_tools
 fetch v8 #pull down v8 (this will take some time)
 cd v8
+git checkout 6.7.77
 gclient sync
 ```
 
