@@ -121,6 +121,17 @@ func (k Kind) String() string {
 
 func (k Kind) mask() kindMask { return kindMask(1 << k) }
 
+// KindList List of Kinds pretty self explanitory
+type KindList []Kind
+
+func (kinds KindList) String() string {
+	var res []string
+	for _, kind := range kinds {
+		res = append(res, kind.String())
+	}
+	return strings.Join(res, ",")
+}
+
 type kindMask uint64
 
 // if kNumKinds > 64, then this will fail at compile time.
@@ -131,14 +142,20 @@ func (mask kindMask) Is(k Kind) bool {
 }
 
 func (mask kindMask) String() string {
-	var res []string
+	kinds := mask.Kinds()
+	return kinds.String()
+}
+
+func (mask kindMask) Kinds() KindList {
+	var kinds KindList
 	for k := Kind(0); k < kNumKinds; k++ {
 		if mask.Is(k) {
-			res = append(res, k.String())
+			kinds = append(kinds, k)
 		}
 	}
-	return strings.Join(res, ",")
+	return kinds
 }
+
 
 func mask(kinds ...Kind) kindMask {
 	var res kindMask
