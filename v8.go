@@ -449,6 +449,12 @@ func (v *Value) IsKind(k Kind) bool {
 	return v.kindMask.Is(k)
 }
 
+// KindsOf will get a list of Kinds for the underlying value.
+// The kind of a value is set when the value is created and will not change.
+func (v *Value) KindsOf() KindList {
+	return v.kindMask.Kinds()
+}
+
 // New creates a new instance of an object using this value as its constructor.
 // If this value is not a function, this will fail.
 func (v *Value) New(args ...*Value) (*Value, error) {
