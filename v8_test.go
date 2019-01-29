@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -1521,4 +1522,22 @@ func TestPromise(t *testing.T) {
 	if state, result, err := v.PromiseInfo(); err == nil {
 		t.Errorf("Expected an error, but got nil and state=%#v result=%#v", state, result)
 	}
+}
+
+func TestPanicHandling(t *testing.T) {
+	// v8 runtime can register its own signal handlers which would interfere
+	// with Go's signal handlers which are needed for panic handling
+	defer func() {
+		if r := recover(); r != nil {
+			// if we reach this point, Go's panic mechanism is still intact
+			_, ok := r.(runtime.Error)
+			if !ok {
+				t.Errorf("expected runtime error, actual %v", r)
+			}
+		}
+	}()
+
+	var f *big.Float
+	_ = NewIsolate()
+	_ = *f
 }
