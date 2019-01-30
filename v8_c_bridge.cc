@@ -168,7 +168,10 @@ extern "C" {
 Version version = {V8_MAJOR_VERSION, V8_MINOR_VERSION, V8_BUILD_NUMBER, V8_PATCH_LEVEL};
 
 void v8_init() {
-  v8::Platform *platform = v8::platform::CreateDefaultPlatform();
+  v8::Platform *platform = v8::platform::CreateDefaultPlatform(
+      0, // thread_pool_size
+      v8::platform::IdleTaskSupport::kDisabled,
+      v8::platform::InProcessStackDumping::kDisabled);
   v8::V8::InitializePlatform(platform);
   v8::V8::Initialize();
   return;
