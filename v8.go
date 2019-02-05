@@ -154,7 +154,7 @@ type Isolate struct {
 // NewIsolate creates a new V8 Isolate.
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
+	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0}, nil)}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
@@ -163,7 +163,19 @@ func NewIsolate() *Isolate {
 // to initialize all Contexts created from this Isolate.
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{ptr: C.v8_Isolate_New(s.data), s: s}
+	iso := &Isolate{ptr: C.v8_Isolate_New(s.data, nil), s: s}
+	runtime.SetFinalizer(iso, (*Isolate).release)
+	return iso
+}
+
+type ResourceConstraints struct {
+	MaxOldSpaceSize int
+}
+
+func NewIsolateWithConstraints(constraints ResourceConstraints) *Isolate {
+	v8_init_once.Do(func() { C.v8_init() })
+	var c = C.ResourceConstraints{max_old_space_size: C.int(constraints.MaxOldSpaceSize)}
+	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0}, &c)}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }

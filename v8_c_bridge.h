@@ -33,6 +33,10 @@ typedef struct {
     size_t does_zap_garbage;
 } HeapStatistics;
 
+typedef struct {
+    int max_old_space_size;
+} ResourceConstraints;
+
 // NOTE! These values must exactly match the values in kinds.go. Any mismatch
 // will cause kinds to be misreported.
 typedef enum {
@@ -114,7 +118,7 @@ extern void v8_init();
 
 extern StartupData v8_CreateSnapshotDataBlob(const char* js);
 
-extern IsolatePtr v8_Isolate_New(StartupData data);
+extern IsolatePtr v8_Isolate_New(StartupData data, ResourceConstraints* resource_constraints);
 extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate);
 extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
