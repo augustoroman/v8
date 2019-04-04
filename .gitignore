@@ -22,6 +22,7 @@ _testmain.go
 *.exe
 *.test
 *.prof
+*.zip
 /include
 /libv8
 v8/build/.gclient
