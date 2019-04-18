@@ -146,12 +146,15 @@ func CreateSnapshot(js string) *Snapshot {
 // Isolate represents a single-threaded V8 engine instance.  It can run multiple
 // independent Contexts and V8 values can be freely shared between the Contexts,
 // however only one context will ever execute at a time.
-type Isolate struct{ ptr C.IsolatePtr }
+type Isolate struct {
+	ptr C.IsolatePtr
+	s   *Snapshot // make sure not to be advanced GC
+}
 
 // NewIsolate creates a new V8 Isolate.
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
+	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
@@ -160,7 +163,7 @@ func NewIsolate() *Isolate {
 // to initialize all Contexts created from this Isolate.
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{C.v8_Isolate_New(s.data)}
+	iso := &Isolate{ptr: C.v8_Isolate_New(s.data), s: s}
 	runtime.SetFinalizer(iso, (*Isolate).release)
 	return iso
 }
