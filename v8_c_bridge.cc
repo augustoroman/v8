@@ -1,4 +1,5 @@
 #include "v8_c_bridge.h"
+#include "_cgo_export.h"
 
 #include "libplatform/libplatform.h"
 #include "v8.h"
@@ -8,6 +9,8 @@
 #include <string>
 #include <sstream>
 #include <stdio.h>
+
+#include <functional>
 
 #define ISOLATE_SCOPE(iso) \
   v8::Isolate* isolate = (iso);                                                               \
@@ -23,6 +26,8 @@
 
 extern "C" ValueTuple go_callback_handler(
     String id, CallerInfo info, int argc, ValueTuple* argv);
+
+extern "C" void go_oom_error_handler(const char *location, bool is_heap_oom);
 
 // We only need one, it's stateless.
 auto allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -180,6 +185,11 @@ void v8_init() {
 StartupData v8_CreateSnapshotDataBlob(const char* js) {
   v8::StartupData data = v8::V8::CreateSnapshotDataBlob(js);
   return StartupData{data.data, data.raw_size};
+}
+
+void v8_Isolate_SetOOMErrorHandler(IsolatePtr isolate_ptr) {
+  v8::Isolate* isolate = static_cast<v8::Isolate*>(isolate_ptr);
+  isolate->SetOOMErrorHandler(go_oom_error_handler);
 }
 
 IsolatePtr v8_Isolate_New(StartupData startup_data, ResourceConstraints* resource_constraints) {

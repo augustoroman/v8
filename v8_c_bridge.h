@@ -122,6 +122,7 @@ extern IsolatePtr v8_Isolate_New(StartupData data, ResourceConstraints* resource
 extern ContextPtr v8_Isolate_NewContext(IsolatePtr isolate);
 extern void       v8_Isolate_Terminate(IsolatePtr isolate);
 extern void       v8_Isolate_Release(IsolatePtr isolate);
+extern void       v8_Isolate_SetOOMErrorHandler(IsolatePtr isolate);
 
 extern HeapStatistics       v8_Isolate_GetHeapStatistics(IsolatePtr isolate);
 extern void                 v8_Isolate_LowMemoryNotification(IsolatePtr isolate);
