@@ -1541,3 +1541,89 @@ func TestPanicHandling(t *testing.T) {
 	_ = NewIsolate()
 	_ = *f
 }
+
+func TestNewIsolateWithResourceConstraints(t *testing.T) {
+	// Creates a v8 runtime where the memory is limited to 3MB and memory is
+	// allocated with a small script until v8 runs out of memory.
+	t.Parallel()
+	isolate, err := NewIsolateWithOptions(IsolateOptions{MaxOldSpaceSize: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetOOMErrorHandler(func(location string, isHeapOOM bool) {
+		// Mark test as skipped, otherwise it would crash the process
+		t.SkipNow()
+	})
+	ctx := isolate.NewContext()
+	for i := 0; i < 10; i++ {
+		_, err := ctx.Eval(fmt.Sprintf("var array%d = new Array(100000); array%d.fill(1);", i, i), "test.js")
+		if err != nil {
+			t.Fatalf("Error evaluating javascript, err: %v", err)
+		}
+	}
+}
+
+func TestNewIsolateWithOptions(t *testing.T) {
+	var newIsolateWithOptionsTests = []struct {
+		name string
+		opts IsolateOptions
+		err  string
+	}{
+		{
+			name: "negative max old space size",
+			opts: IsolateOptions{
+				MaxOldSpaceSize: -1,
+			},
+			err: "MaxOldSpaceSize is too small to initialize v8",
+		},
+		{
+			name: "too little memory to initialize v8",
+			opts: IsolateOptions{
+				MaxOldSpaceSize: 2,
+			},
+			err: "MaxOldSpaceSize is too small to initialize v8",
+		},
+	}
+	for _, tt := range newIsolateWithOptionsTests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewIsolateWithOptions(tt.opts)
+			if tt.err != "" && err == nil {
+				t.Fatalf("expected error %s, actual %v", tt.err, err)
+			}
+			if err.Error() != tt.err {
+				t.Fatalf("expected error %s, actual %v", tt.err, err)
+			}
+		})
+	}
+}
+
+func TestNewIsolateWithResourceConstraintsMultipleIsolates(t *testing.T) {
+	// Creates a v8 runtime where the memory is limited to 3MB and memory is
+	// allocated with a small script until v8 runs out of memory.
+	t.Parallel()
+	_, err := NewIsolateWithOptions(IsolateOptions{MaxOldSpaceSize: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetOOMErrorHandler(func(location string, isHeapOOM bool) {
+		// Mark test as skipped, otherwise it would crash the process
+		t.SkipNow()
+	})
+	_, err = NewIsolateWithOptions(IsolateOptions{MaxOldSpaceSize: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolate, err := NewIsolateWithOptions(IsolateOptions{MaxOldSpaceSize: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := isolate.NewContext()
+	for i := 0; i < 10; i++ {
+		_, err := ctx.Eval(fmt.Sprintf("var array%d = new Array(100000); array%d.fill(1);", i, i), "test.js")
+		if err != nil {
+			t.Fatalf("Error evaluating javascript, err: %v", err)
+		}
+	}
+}
