@@ -154,8 +154,11 @@ type Isolate struct {
 // NewIsolate creates a new V8 Isolate.
 func NewIsolate() *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0})}
+	iso := &Isolate{ptr: C.v8_Isolate_New(C.StartupData{ptr: nil, len: 0}, nil)}
 	runtime.SetFinalizer(iso, (*Isolate).release)
+
+	addIsolate(iso)
+	setOOMErrorHandler(iso.ptr)
 	return iso
 }
 
@@ -163,9 +166,43 @@ func NewIsolate() *Isolate {
 // to initialize all Contexts created from this Isolate.
 func NewIsolateWithSnapshot(s *Snapshot) *Isolate {
 	v8_init_once.Do(func() { C.v8_init() })
-	iso := &Isolate{ptr: C.v8_Isolate_New(s.data), s: s}
+	iso := &Isolate{ptr: C.v8_Isolate_New(s.data, nil), s: s}
 	runtime.SetFinalizer(iso, (*Isolate).release)
+
+	addIsolate(iso)
+	setOOMErrorHandler(iso.ptr)
 	return iso
+}
+
+type IsolateOptions struct {
+	Snapshot *Snapshot
+	// MaxOldSpaceSize sets the maximum size of the old object heap in MiB.
+	MaxOldSpaceSize int
+}
+
+// NewIsolateWithOptions creates a new V8 Isolate applying additional options
+// like resource constraints or using the supplied Snapshot to initialize all
+// Contexts created from this Isolate.
+func NewIsolateWithOptions(opts IsolateOptions) (*Isolate, error) {
+	var startupData = C.StartupData{ptr: nil, len: 0}
+	var resourceConstraints C.ResourceConstraints
+
+	v8_init_once.Do(func() { C.v8_init() })
+	if opts.Snapshot != nil {
+		startupData = opts.Snapshot.data
+	}
+	if opts.MaxOldSpaceSize < 3 {
+		return nil, errors.New("MaxOldSpaceSize is too small to initialize v8")
+	}
+	if opts.MaxOldSpaceSize > 0 {
+		resourceConstraints = C.ResourceConstraints{max_old_space_size: C.int(opts.MaxOldSpaceSize)}
+	}
+	iso := &Isolate{ptr: C.v8_Isolate_New(startupData, &resourceConstraints)}
+	runtime.SetFinalizer(iso, (*Isolate).release)
+
+	addIsolate(iso)
+	setOOMErrorHandler(iso.ptr)
+	return iso, nil
 }
 
 // NewContext creates a new, clean V8 Context within this Isolate.
@@ -203,6 +240,42 @@ func (i *Isolate) convertErrorMsg(error_msg C.Error) error {
 	err := errors.New(C.GoStringN(error_msg.ptr, error_msg.len))
 	C.free(unsafe.Pointer(error_msg.ptr))
 	return err
+}
+
+type OOMErrorCallback func(location string, isHeapOOM bool)
+
+var oomErrorCallbackMutex sync.RWMutex
+var oomErrorHandler OOMErrorCallback
+
+//export go_oom_error_handler
+func go_oom_error_handler(location C.String, heapOOM C.int) {
+	if oomErrorHandler != nil {
+		var isHeapOOM bool
+		b := C.int(heapOOM)
+		if b == 1 {
+			isHeapOOM = true
+		}
+		oomErrorCallbackMutex.RLock()
+		oomErrorHandler(C.GoString(location.ptr), isHeapOOM)
+		oomErrorCallbackMutex.RUnlock()
+	}
+}
+
+func SetOOMErrorHandler(fn OOMErrorCallback) {
+	oomErrorCallbackMutex.Lock()
+	oomErrorHandler = fn
+	oomErrorCallbackMutex.Unlock()
+	for ptr := range isolates {
+		C.v8_Isolate_SetOOMErrorHandler(ptr)
+	}
+}
+
+func setOOMErrorHandler(ptr C.IsolatePtr) {
+	oomErrorCallbackMutex.RLock()
+	if oomErrorHandler != nil {
+		C.v8_Isolate_SetOOMErrorHandler(ptr)
+	}
+	oomErrorCallbackMutex.RUnlock()
 }
 
 // Context is a sandboxed js environment with its own set of built-in objects
@@ -523,6 +596,11 @@ var contexts = map[int]*refCount{}
 var contextsMutex sync.RWMutex
 var nextContextId int
 
+var (
+	isolatesMutex sync.RWMutex
+	isolates      = map[C.IsolatePtr]*Isolate{}
+)
+
 type refCount struct {
 	ptr   *Context
 	count int
@@ -532,7 +610,7 @@ func addRef(ctx *Context) {
 	contextsMutex.Lock()
 	ref := contexts[ctx.id]
 	if ref == nil {
-		ref = &refCount{ctx, 0}
+		ref = &refCount{ptr: ctx, count: 0}
 		contexts[ctx.id] = ref
 	}
 	ref.count++
@@ -547,6 +625,12 @@ func decRef(ctx *Context) {
 		ref.count--
 	}
 	contextsMutex.Unlock()
+}
+
+func addIsolate(iso *Isolate) {
+	isolatesMutex.Lock()
+	isolates[iso.ptr] = iso
+	isolatesMutex.Unlock()
 }
 
 //export go_callback_handler

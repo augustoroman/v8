@@ -1,4 +1,5 @@
 #include "v8_c_bridge.h"
+#include "_cgo_export.h"
 
 #include "libplatform/libplatform.h"
 #include "v8.h"
@@ -8,6 +9,8 @@
 #include <string>
 #include <sstream>
 #include <stdio.h>
+
+#include <functional>
 
 #define ISOLATE_SCOPE(iso) \
   v8::Isolate* isolate = (iso);                                                               \
@@ -23,6 +26,8 @@
 
 extern "C" ValueTuple go_callback_handler(
     String id, CallerInfo info, int argc, ValueTuple* argv);
+
+extern "C" void go_oom_error_handler(const char *location, bool is_heap_oom);
 
 // We only need one, it's stateless.
 auto allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
@@ -182,7 +187,12 @@ StartupData v8_CreateSnapshotDataBlob(const char* js) {
   return StartupData{data.data, data.raw_size};
 }
 
-IsolatePtr v8_Isolate_New(StartupData startup_data) {
+void v8_Isolate_SetOOMErrorHandler(IsolatePtr isolate_ptr) {
+  v8::Isolate* isolate = static_cast<v8::Isolate*>(isolate_ptr);
+  isolate->SetOOMErrorHandler(go_oom_error_handler);
+}
+
+IsolatePtr v8_Isolate_New(StartupData startup_data, ResourceConstraints* resource_constraints) {
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = allocator;
   if (startup_data.len > 0 && startup_data.ptr != nullptr) {
@@ -190,6 +200,10 @@ IsolatePtr v8_Isolate_New(StartupData startup_data) {
     data->data = startup_data.ptr;
     data->raw_size = startup_data.len;
     create_params.snapshot_blob = data;
+  }
+  if (resource_constraints != nullptr) {
+    create_params.constraints = v8::ResourceConstraints();
+    create_params.constraints.set_max_old_space_size(resource_constraints->max_old_space_size);
   }
   return static_cast<IsolatePtr>(v8::Isolate::New(create_params));
 }
